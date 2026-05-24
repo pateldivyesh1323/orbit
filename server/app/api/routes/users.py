@@ -38,10 +38,10 @@ async def update_me(
     body: UserUpdateRequest,
     current_user: User = Depends(get_current_user),
 ) -> UserDetailResponse:
-    updates = body.model_dump(exclude_unset=True)
-    for key, value in updates.items():
-        setattr(current_user, key, value)
-        if key == "contact" and value is not None:
+    for field_name in body.model_fields_set:
+        value = getattr(body, field_name)
+        setattr(current_user, field_name, value)
+        if field_name == "contact" and value is not None:
             current_user.email = value.email
     current_user.touch_updated()
     await current_user.save()

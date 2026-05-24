@@ -64,7 +64,7 @@ export type UserHealth = {
   mental_health_notes: string | null;
 };
 
-export type UserWork = {
+export type WorkEntry = {
   occupation: string | null;
   employer: string | null;
   industry: string | null;
@@ -72,9 +72,14 @@ export type UserWork = {
   work_hours_start: string | null;
   work_hours_end: string | null;
   work_days: string[];
+  current_projects: string[];
+  is_primary: boolean;
+};
+
+export type UserWork = {
+  roles: WorkEntry[];
   productivity_goals: string[];
   skills: string[];
-  current_projects: string[];
   career_goals: string[];
 };
 

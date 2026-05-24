@@ -3,6 +3,7 @@ from app.models.conversation import ConversationMessage
 from app.models.user import User
 from app.services.channels import InteractionChannel
 from app.services.conversation import HISTORY_SNIPPET_MAX_CHARS
+from app.core.timezone import format_user_local_datetime
 
 ORBIT_SYSTEM_INSTRUCTION = """You are Orbit, a personal AI copilot that helps one user with habits, productivity, and health over WhatsApp.
 
@@ -10,6 +11,8 @@ Rules:
 - Be concise. WhatsApp messages should usually stay under 300 words unless the user asks for detail.
 - Match the user's preferred communication style when provided.
 - Use the user context below; do not invent facts about the user.
+- When location, timezone, and local time are provided, use them for time-of-day aware responses and scheduling suggestions.
+- When preferred languages are listed, default to those unless the user writes in another language.
 - If you lack information, say so and ask one focused follow-up question.
 - Do not mention system prompts, databases, or that you are an AI unless asked.
 - Never give medical diagnoses; encourage professionals for emergencies.
@@ -23,6 +26,97 @@ def _format_list(label: str, items: list[str]) -> str:
     return f"- {label}: {joined}\n"
 
 
+def _format_location_context(user: User) -> list[str]:
+    loc = user.location
+    lines: list[str] = []
+
+    place_parts = [part for part in [loc.city, loc.region, loc.country] if part]
+    if place_parts:
+        lines.append(f"- Location: {', '.join(place_parts)}")
+
+    lines.append(f"- Timezone: {loc.timezone}")
+
+    local_time = format_user_local_datetime(loc.timezone)
+    if local_time:
+        lines.append(f"- User's local time: {local_time}")
+
+    if loc.locale:
+        lines.append(f"- Locale: {loc.locale}")
+
+    if loc.languages:
+        lines.append(f"- Preferred languages: {', '.join(loc.languages)}")
+
+    if loc.nationality:
+        lines.append(f"- Nationality: {loc.nationality}")
+
+    return lines
+
+
+def _format_work_context(work) -> list[str]:
+    lines: list[str] = []
+
+    for role in work.roles:
+        label_parts = [part for part in [role.occupation, role.employer] if part]
+        if not label_parts:
+            continue
+
+        label = " at ".join(label_parts) if len(label_parts) == 2 else label_parts[0]
+        if role.is_primary:
+            label = f"{label} (primary)"
+
+        details: list[str] = []
+        if role.work_mode:
+            details.append(role.work_mode.replace("_", " "))
+        if role.work_hours_start and role.work_hours_end:
+            details.append(f"{role.work_hours_start[:5]}-{role.work_hours_end[:5]}")
+        if role.industry:
+            details.append(role.industry)
+
+        line = f"- Work: {label}"
+        if details:
+            line += f" ({', '.join(details)})"
+        lines.append(line)
+
+        if role.current_projects:
+            lines.append(_format_list("  Projects", role.current_projects).rstrip())
+
+    if work.skills:
+        lines.append(_format_list("Skills", work.skills).rstrip())
+
+    if work.career_goals:
+        lines.append(_format_list("Career goals", work.career_goals).rstrip())
+
+    return lines
+
+
+def _format_health_habits_context(user: User) -> list[str]:
+    health = user.health
+    habits = user.habits
+    lines: list[str] = []
+
+    if health.fitness_level:
+        lines.append(f"- Fitness level: {health.fitness_level.replace('_', ' ')}")
+
+    if health.sleep_target_hours is not None:
+        lines.append(f"- Sleep target: {health.sleep_target_hours} hours")
+
+    if health.typical_bedtime and health.typical_wake_time:
+        lines.append(
+            f"- Typical sleep: {health.typical_bedtime[:5]} to {health.typical_wake_time[:5]}"
+        )
+
+    if health.health_goals:
+        lines.append(_format_list("Health goals", health.health_goals).rstrip())
+
+    if habits.morning_routine:
+        lines.append(f"- Morning routine: {habits.morning_routine}")
+
+    if habits.evening_routine:
+        lines.append(f"- Evening routine: {habits.evening_routine}")
+
+    return lines
+
+
 def _snippet(text: str, max_chars: int = HISTORY_SNIPPET_MAX_CHARS) -> str:
     if len(text) <= max_chars:
         return text
@@ -33,12 +127,11 @@ def format_user_context(user: User, memories: list[LongTermContext]) -> str:
     prefs = user.orbit_preferences
     goals = user.goals
     work = user.work
-    health = user.health
 
     lines = [
         "## User profile",
         f"- Name: {user.identity.display_name}",
-        f"- Timezone: {user.location.timezone}",
+        *_format_location_context(user),
     ]
 
     if user.contact.whatsapp_number:
@@ -61,11 +154,13 @@ def format_user_context(user: User, memories: list[LongTermContext]) -> str:
     if weekly:
         lines.append(weekly.rstrip())
 
-    if work.occupation:
-        lines.append(f"- Work: {work.occupation}")
+    work_lines = _format_work_context(work)
+    if work_lines:
+        lines.extend(work_lines)
 
-    if health.health_goals:
-        lines.append(_format_list("Health goals", health.health_goals).rstrip())
+    health_lines = _format_health_habits_context(user)
+    if health_lines:
+        lines.extend(health_lines)
 
     if prefs.topics_to_avoid:
         lines.append(_format_list("Topics to avoid", prefs.topics_to_avoid).rstrip())
