@@ -195,6 +195,10 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
             <dl className="space-y-3">
               <InfoRow label="Life mission" value={profile.goals.life_mission} />
               <InfoRow
+                label="Personal goals"
+                value={formatList(profile.goals.personal_goals ?? [], "—")}
+              />
+              <InfoRow
                 label="Focus areas"
                 value={formatList(profile.goals.focus_areas, "—")}
               />
@@ -664,6 +668,9 @@ function OrbitPreferencesForm({
 
 function GoalsForm({ profile, token, onProfileUpdated, onCancel }: FormProps) {
   const [lifeMission, setLifeMission] = useState(profile.goals.life_mission ?? "");
+  const [personalGoals, setPersonalGoals] = useState(
+    listToLines(profile.goals.personal_goals ?? []),
+  );
   const [focusAreas, setFocusAreas] = useState(listToLines(profile.goals.focus_areas));
   const [weeklyPriorities, setWeeklyPriorities] = useState(
     listToLines(profile.goals.weekly_priorities),
@@ -682,6 +689,7 @@ function GoalsForm({ profile, token, onProfileUpdated, onCancel }: FormProps) {
       goals: {
         ...profile.goals,
         life_mission: lifeMission.trim() || null,
+        personal_goals: linesToList(personalGoals),
         focus_areas: linesToList(focusAreas),
         weekly_priorities: linesToList(weeklyPriorities),
         short_term: linesToGoals(shortTerm, profile.goals.short_term),
@@ -699,6 +707,15 @@ function GoalsForm({ profile, token, onProfileUpdated, onCancel }: FormProps) {
           value={lifeMission}
           onChange={(e) => setLifeMission(e.target.value)}
           rows={2}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="personal-goals">Personal goals (one per line)</Label>
+        <Textarea
+          id="personal-goals"
+          value={personalGoals}
+          onChange={(e) => setPersonalGoals(e.target.value)}
+          rows={3}
         />
       </div>
       <div className="space-y-2">

@@ -34,6 +34,7 @@ export type GoalItem = {
 
 export type UserGoals = {
   life_mission: string | null;
+  personal_goals: string[];
   short_term: GoalItem[];
   long_term: GoalItem[];
   focus_areas: string[];

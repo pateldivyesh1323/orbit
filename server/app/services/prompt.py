@@ -146,6 +146,10 @@ def format_user_context(user: User, memories: list[LongTermContext]) -> str:
     if goals.life_mission:
         lines.append(f"- Life mission: {goals.life_mission}")
 
+    personal = _format_list("Personal goals", goals.personal_goals)
+    if personal:
+        lines.append(personal.rstrip())
+
     focus = _format_list("Focus areas", goals.focus_areas)
     if focus:
         lines.append(focus.rstrip())

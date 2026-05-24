@@ -54,6 +54,7 @@ class GoalItem(BaseModel):
 
 class UserGoals(BaseModel):
     life_mission: str | None = None
+    personal_goals: list[str] = Field(default_factory=list)
     short_term: list[GoalItem] = Field(default_factory=list)
     long_term: list[GoalItem] = Field(default_factory=list)
     focus_areas: list[str] = Field(default_factory=list)
