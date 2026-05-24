@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { SiteHeader } from "@/components/site-header";
+import { RegisterForm } from "@/components/auth/register-form";
 import {
   Card,
   CardContent,
@@ -18,14 +17,11 @@ export default function RegisterPage() {
           <CardHeader>
             <CardTitle>Sign up</CardTitle>
             <CardDescription>
-              Registration UI will connect to FastAPI{" "}
-              <code className="text-xs">/api/auth/register</code>.
+              Create your Orbit account to connect WhatsApp and your data sources.
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-muted-foreground text-sm">
-            <Link href="/login" className="underline underline-offset-4">
-              Already have an account?
-            </Link>
+          <CardContent>
+            <RegisterForm />
           </CardContent>
         </Card>
       </main>

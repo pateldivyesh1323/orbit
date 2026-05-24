@@ -193,7 +193,7 @@ flowchart LR
 - [x] Tailwind CSS v4 + shadcn/ui (button, card, input, label)
 - [x] API client (`src/lib/api.ts`) + auth token storage stub
 - [x] Placeholder routes: `/`, `/login`, `/register`
-- [ ] Wire login/register forms to FastAPI
+- [x] Wire login/register forms to FastAPI
 - [ ] Profile, memory, and integrations pages
 - [ ] First connector (WakaTime or GitHub API key) with secure storage
 

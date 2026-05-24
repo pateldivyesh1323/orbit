@@ -1,3 +1,5 @@
+import { getErrorMessage } from "@/lib/errors";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export function getApiUrl(path: string): string {
@@ -48,11 +50,11 @@ export async function apiFetch<T>(
       : await response.text();
 
   if (!response.ok) {
-    const message =
-      typeof body === "object" && body !== null && "detail" in body
-        ? String((body as { detail: unknown }).detail)
-        : response.statusText;
-    throw new ApiError(message, response.status, body);
+    throw new ApiError(
+      getErrorMessage(body, response.statusText),
+      response.status,
+      body,
+    );
   }
 
   return body as T;

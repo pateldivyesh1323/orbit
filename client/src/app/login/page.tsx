@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { SiteHeader } from "@/components/site-header";
+import { LoginForm } from "@/components/auth/login-form";
 import {
   Card,
   CardContent,
@@ -18,14 +17,11 @@ export default function LoginPage() {
           <CardHeader>
             <CardTitle>Log in</CardTitle>
             <CardDescription>
-              Authentication UI will connect to FastAPI{" "}
-              <code className="text-xs">/api/auth/login</code>.
+              Sign in to manage your Orbit profile and integrations.
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-muted-foreground text-sm">
-            <Link href="/register" className="underline underline-offset-4">
-              Create an account
-            </Link>
+          <CardContent>
+            <LoginForm />
           </CardContent>
         </Card>
       </main>

@@ -68,8 +68,12 @@ export default function Home() {
             {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}
           </code>
           {" · "}
+          <Link href="/register" className="underline underline-offset-4">
+            Create an account
+          </Link>{" "}
+          or{" "}
           <Link href="/login" className="underline underline-offset-4">
-            Sign in
+            sign in
           </Link>{" "}
           to get started.
         </p>

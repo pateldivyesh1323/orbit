@@ -1,13 +1,20 @@
 from datetime import date, time
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.phone import normalize_whatsapp_number
 
 
 class UserContact(BaseModel):
     email: str
     phone_number: str | None = None
     whatsapp_number: str | None = None
+
+    @field_validator("whatsapp_number")
+    @classmethod
+    def validate_whatsapp_number(cls, value: str | None) -> str | None:
+        return normalize_whatsapp_number(value)
 
 
 class UserIdentity(BaseModel):

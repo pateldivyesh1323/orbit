@@ -1,7 +1,6 @@
 import Link from "next/link";
 
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { AuthNav } from "@/components/auth-nav";
 
 export function SiteHeader() {
   return (
@@ -10,17 +9,7 @@ export function SiteHeader() {
         <Link href="/" className="text-lg font-semibold tracking-tight">
           Orbit
         </Link>
-        <nav className="flex items-center gap-2">
-          <Link
-            href="/login"
-            className={cn(buttonVariants({ variant: "ghost" }))}
-          >
-            Log in
-          </Link>
-          <Link href="/register" className={cn(buttonVariants())}>
-            Sign up
-          </Link>
-        </nav>
+        <AuthNav />
       </div>
     </header>
   );
