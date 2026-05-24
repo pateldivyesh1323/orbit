@@ -1,16 +1,18 @@
-# Orbit Backend
+# Orbit Server
 
 FastAPI service with MongoDB Atlas via Beanie.
 
 ## Quickstart
 
 ```powershell
-cd backend
+cd server
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 copy .env.example .env
 ```
+
+If `uvicorn` fails with a path under `backend\.venv`, the virtualenv was copied from the old folder name—delete `server\.venv` and run the commands above again.
 
 Set `MONGODB_URI` in `.env` to your Atlas connection string, then:
 
