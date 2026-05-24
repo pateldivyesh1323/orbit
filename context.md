@@ -172,20 +172,24 @@ flowchart LR
 - [x] FastAPI server (`server/`)
 - [x] MongoDB connection (Beanie + Motor)
 - [x] Mock `POST /api/webhook/whatsapp` (logs + echo reply)
-- [ ] Twilio/Meta outbound send + signature verification
+- [x] Twilio outbound send (REST API)
+- [ ] Meta WhatsApp Cloud API (alternative provider)
 
-### Phase 2: The Brain Integration — **Not started**
+### Phase 2: The Brain Integration — **In progress**
 
-- [ ] Integrate Gemini SDK (`google-genai`)
-- [ ] Replace echo with dynamic Gemini response
-- [ ] Prompt template (personality, limits, user + context injection)
+- [x] Integrate Gemini SDK (`google-genai`)
+- [x] Prompt template (personality, limits, user + context injection)
+- [x] `POST /api/dev/chat` — test AI without WhatsApp
+- [x] WhatsApp webhook → user lookup → Gemini → Twilio outbound
+- [ ] Twilio signature verification enabled in production
+- [ ] Conversation history storage (multi-turn)
 
 ### Phase 3: Database & State Management — **Partially done**
 
 - [x] Beanie models: `User`, `Integration`, `LongTermContext`
 - [x] Extensive user profile embeds (`user_profile.py`)
 - [x] Auth: register, login, JWT, protected profile/context routes
-- [ ] Webhook: resolve user by WhatsApp number and load context before Gemini
+- [x] Webhook: resolve user by WhatsApp number and load context before Gemini
 
 ### Phase 4: The Dashboard & First Connector — **In progress**
 

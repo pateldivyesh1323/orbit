@@ -3,9 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import settings
 from app.core.database import init_db, close_db
-from app.api.routes import auth, context, health, users, webhook
+from app.api.routes import auth, context, dev, health, users, webhook
+from app.core.config import settings
 
 
 @asynccontextmanager
@@ -30,3 +30,5 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(context.router)
 app.include_router(webhook.router)
+if settings.enable_dev_routes:
+    app.include_router(dev.router)
