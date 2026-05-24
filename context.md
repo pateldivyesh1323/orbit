@@ -194,7 +194,10 @@ flowchart LR
 - [x] API client (`src/lib/api.ts`) + auth token storage stub
 - [x] Placeholder routes: `/`, `/login`, `/register`
 - [x] Wire login/register forms to FastAPI
-- [ ] Profile, memory, and integrations pages
+- [x] Dashboard with profile, memory, and integrations tabs
+- [x] Profile editing forms on dashboard (PATCH /api/users/me per section)
+- [x] Add memory entry form (POST /api/context)
+- [ ] Integration connect flows
 - [ ] First connector (WakaTime or GitHub API key) with secure storage
 
 ---
