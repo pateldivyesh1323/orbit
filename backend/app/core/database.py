@@ -4,6 +4,7 @@ from beanie import init_beanie
 from app.core.config import settings
 from app.models.user import User
 from app.models.integration import Integration
+from app.models.context import LongTermContext
 
 _client: AsyncIOMotorClient | None = None
 
@@ -13,7 +14,7 @@ async def init_db() -> None:
     _client = AsyncIOMotorClient(settings.mongodb_uri)
     await init_beanie(
         database=_client[settings.mongodb_db_name],
-        document_models=[User, Integration],
+        document_models=[User, Integration, LongTermContext],
     )
 
 

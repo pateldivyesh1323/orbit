@@ -20,3 +20,9 @@ uvicorn app.main:app --reload
 
 - Health: `GET http://localhost:8000/health`
 - Webhook stub: `POST http://localhost:8000/api/webhook/whatsapp`
+- Register: `POST http://localhost:8000/api/auth/register` (JSON body)
+- Login: `POST http://localhost:8000/api/auth/login` (form: `username`=email, `password`)
+- Profile (auth required): `GET http://localhost:8000/api/users/me`
+- Long-term context (auth required): `GET/POST/PATCH/DELETE http://localhost:8000/api/context`
+
+Set `JWT_SECRET_KEY` in `.env` to a long random string before using auth endpoints.

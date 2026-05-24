@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import init_db, close_db
-from app.api.routes import health, webhook
+from app.api.routes import auth, context, health, users, webhook
 
 
 @asynccontextmanager
@@ -24,4 +24,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(context.router)
 app.include_router(webhook.router)
