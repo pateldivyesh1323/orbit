@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -10,8 +11,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChatTab } from "@/components/dashboard/chat-tab";
+import {
+  DashboardSidebar,
+  type DashboardSection,
+} from "@/components/dashboard/dashboard-sidebar";
 import { IntegrationsTab } from "@/components/dashboard/integrations-tab";
 import { MemoryTab } from "@/components/dashboard/memory-tab";
 import { MessagingSettingsTab } from "@/components/dashboard/messaging-settings-tab";
@@ -22,6 +26,29 @@ import { formatDateTime } from "@/lib/format";
 import { getUserProfile } from "@/lib/users";
 import type { LongTermContextItem } from "@/types/context";
 import type { UserProfile } from "@/types/user";
+
+const SECTION_TITLES: Record<DashboardSection, { title: string; description: string }> = {
+  chat: {
+    title: "Chat",
+    description: "Same AI as WhatsApp — powered by your profile and memory.",
+  },
+  profile: {
+    title: "Profile",
+    description: "Goals, health, work, and how Orbit should communicate.",
+  },
+  memory: {
+    title: "Memory",
+    description: "Long-term facts, chat history, and synced integration data.",
+  },
+  messaging: {
+    title: "Messaging & automation",
+    description: "WhatsApp channel, check-ins, and background sync settings.",
+  },
+  integrations: {
+    title: "Integrations",
+    description: "Connect tools so Orbit knows what you're working on.",
+  },
+};
 
 function StatCard({
   label,
@@ -50,6 +77,7 @@ function StatCard({
 export function DashboardContent() {
   const { user, token } = useAuth();
   const { isLoading: authLoading } = useRequireAuth();
+  const [activeSection, setActiveSection] = useState<DashboardSection>("chat");
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [memory, setMemory] = useState<LongTermContextItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,116 +110,127 @@ export function DashboardContent() {
   const displayName =
     profile?.identity.display_name ?? user?.display_name ?? "there";
 
+  const sectionMeta = SECTION_TITLES[activeSection];
+
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Welcome back, {displayName}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Chat with Orbit, review what it knows, and configure how it reaches
-            you.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          onClick={loadDashboard}
-          disabled={loading || !token}
-        >
-          Refresh
-        </Button>
-      </div>
+    <div className="flex min-h-[calc(100vh-3.5rem)] flex-1 flex-col lg:flex-row">
+      <DashboardSidebar
+        active={activeSection}
+        onChange={setActiveSection}
+        memoryCount={memory.length}
+        displayName={displayName}
+        onRefresh={loadDashboard}
+        refreshing={loading}
+      />
 
-      {authLoading || loading ? (
-        <p className="text-muted-foreground text-sm">Loading dashboard…</p>
-      ) : null}
-
-      {error ? (
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle className="text-destructive">
-              Could not load dashboard
-            </CardTitle>
-            <CardDescription>{error}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" onClick={loadDashboard}>
-              Try again
+      <main className="flex min-w-0 flex-1 flex-col">
+        <div className="border-b border-border/60 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {sectionMeta.title}
+              </h1>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {sectionMeta.description}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-2 lg:hidden"
+              onClick={loadDashboard}
+              disabled={loading || !token}
+            >
+              <RefreshCw className={loading ? "size-3.5 animate-spin" : "size-3.5"} />
+              Refresh
             </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {profile && token && !error ? (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              label="WhatsApp"
-              value={profile.contact.whatsapp_number ? "Linked" : "Not set"}
-              hint={
-                profile.contact.whatsapp_number ??
-                "Configure in Messaging & automation"
-              }
-            />
-            <StatCard label="Timezone" value={profile.location.timezone} />
-            <StatCard label="Memory entries" value={String(memory.length)} />
-            <StatCard
-              label="Check-ins"
-              value={profile.orbit_preferences.check_in_frequency}
-            />
           </div>
+        </div>
 
-          <Tabs defaultValue="chat">
-            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
-              <TabsTrigger value="chat">Chat</TabsTrigger>
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="memory">Memory ({memory.length})</TabsTrigger>
-              <TabsTrigger value="messaging">Messaging & automation</TabsTrigger>
-              <TabsTrigger value="integrations">Integrations</TabsTrigger>
-            </TabsList>
+        <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+          {authLoading || loading ? (
+            <p className="text-muted-foreground text-sm">Loading dashboard…</p>
+          ) : null}
 
-            <TabsContent value="chat" className="mt-4">
-              <ChatTab token={token} displayName={displayName} />
-            </TabsContent>
+          {error ? (
+            <Card className="border-destructive/50">
+              <CardHeader>
+                <CardTitle className="text-destructive">
+                  Could not load dashboard
+                </CardTitle>
+                <CardDescription>{error}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="outline" onClick={loadDashboard}>
+                  Try again
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
 
-            <TabsContent value="profile" className="mt-4">
-              <ProfileTab
-                profile={profile}
-                token={token}
-                onProfileUpdated={setProfile}
-              />
-            </TabsContent>
+          {profile && token && !error ? (
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+              {activeSection === "chat" ? (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <StatCard
+                    label="WhatsApp"
+                    value={profile.contact.whatsapp_number ? "Linked" : "Not set"}
+                    hint={
+                      profile.contact.whatsapp_number ??
+                      "Configure in Messaging"
+                    }
+                  />
+                  <StatCard label="Timezone" value={profile.location.timezone} />
+                  <StatCard label="Memory entries" value={String(memory.length)} />
+                  <StatCard
+                    label="Check-ins"
+                    value={profile.orbit_preferences.check_in_frequency}
+                  />
+                </div>
+              ) : null}
 
-            <TabsContent value="memory" className="mt-4">
-              <MemoryTab
-                items={memory}
-                token={token}
-                onItemCreated={(item) => setMemory((prev) => [item, ...prev])}
-              />
-            </TabsContent>
+              {activeSection === "chat" ? (
+                <ChatTab token={token} displayName={displayName} />
+              ) : null}
 
-            <TabsContent value="messaging" className="mt-4">
-              <MessagingSettingsTab
-                profile={profile}
-                token={token}
-                onProfileUpdated={setProfile}
-              />
-            </TabsContent>
+              {activeSection === "profile" ? (
+                <ProfileTab
+                  profile={profile}
+                  token={token}
+                  onProfileUpdated={setProfile}
+                />
+              ) : null}
 
-            <TabsContent value="integrations" className="mt-4">
-              <IntegrationsTab />
-            </TabsContent>
-          </Tabs>
+              {activeSection === "memory" ? (
+                <MemoryTab
+                  items={memory}
+                  token={token}
+                  onItemCreated={(item) => setMemory((prev) => [item, ...prev])}
+                />
+              ) : null}
 
-          <p className="text-muted-foreground text-xs">
-            Last updated {formatDateTime(profile.updated_at)}
-            {profile.last_login_at
-              ? ` · Last login ${formatDateTime(profile.last_login_at)}`
-              : null}
-          </p>
-        </>
-      ) : null}
-    </main>
+              {activeSection === "messaging" ? (
+                <MessagingSettingsTab
+                  profile={profile}
+                  token={token}
+                  onProfileUpdated={setProfile}
+                />
+              ) : null}
+
+              {activeSection === "integrations" ? (
+                <IntegrationsTab />
+              ) : null}
+
+              <p className="text-muted-foreground text-xs">
+                Last updated {formatDateTime(profile.updated_at)}
+                {profile.last_login_at
+                  ? ` · Last login ${formatDateTime(profile.last_login_at)}`
+                  : null}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </main>
+    </div>
   );
 }

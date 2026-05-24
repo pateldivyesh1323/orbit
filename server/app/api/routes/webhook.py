@@ -33,6 +33,7 @@ async def whatsapp_webhook(request: Request) -> dict[str, Any]:
         inbound.body,
         user=user,
         channel=InteractionChannel.WHATSAPP,
+        external_id=inbound.message_sid,
     )
 
     message_sid: str | None = None

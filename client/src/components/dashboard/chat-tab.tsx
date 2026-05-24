@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Bot, Loader2, Send, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -13,13 +13,9 @@ import {
 } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { sendChatMessage } from "@/lib/chat-api";
+import { listConversationMessages } from "@/lib/conversation-api";
 import { cn } from "@/lib/utils";
-
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-};
+import type { ConversationMessage } from "@/types/conversation";
 
 type ChatTabProps = {
   token: string;
@@ -27,38 +23,71 @@ type ChatTabProps = {
 };
 
 export function ChatTab({ token, displayName }: ChatTabProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const loadHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const history = await listConversationMessages(token, {
+        channel: "dashboard",
+        limit: 100,
+      });
+      setMessages(history);
+    } catch {
+      setMessages([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
+  useEffect(() => {
+    if (!loadingHistory && messages.length) {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+      });
+    }
+  }, [loadingHistory, messages.length]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const text = input.trim();
     if (!text || sending) return;
 
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+    const tempUserId = crypto.randomUUID();
+    const optimisticUser: ConversationMessage = {
+      id: tempUserId,
       role: "user",
       content: text,
+      channel: "dashboard",
+      external_id: null,
+      created_at: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev, optimisticUser]);
     setInput("");
     setSending(true);
     setError(null);
 
     try {
       const response = await sendChatMessage(token, text);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: response.reply,
-        },
-      ]);
+      const assistantMessage: ConversationMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: response.reply,
+        channel: "dashboard",
+        external_id: null,
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
       requestAnimationFrame(() => {
         scrollRef.current?.scrollTo({
           top: scrollRef.current.scrollHeight,
@@ -66,6 +95,7 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
         });
       });
     } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
       setError(err instanceof Error ? err.message : "Failed to send message");
     } finally {
       setSending(false);
@@ -81,8 +111,8 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
             Talk to Orbit
           </CardTitle>
           <CardDescription>
-            Same AI as WhatsApp — uses your profile and memory. Messages here
-            are not stored yet; WhatsApp history will appear under Memory soon.
+            Same AI as WhatsApp — uses your profile, memory, and recent
+            conversation history. View WhatsApp messages under Memory → Chats.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -93,7 +123,12 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
             ref={scrollRef}
             className="flex max-h-[480px] min-h-[320px] flex-1 flex-col gap-4 overflow-y-auto p-4"
           >
-            {!messages.length ? (
+            {loadingHistory ? (
+              <div className="flex flex-1 items-center justify-center gap-2 text-muted-foreground text-sm">
+                <Loader2 className="size-4 animate-spin" />
+                Loading conversation…
+              </div>
+            ) : !messages.length ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
                 <Bot className="size-10 opacity-40" />
                 <p className="text-sm">

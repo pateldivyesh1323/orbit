@@ -1,20 +1,14 @@
 import logging
 from dataclasses import dataclass
-from enum import Enum
 
 from app.models.user import User
+from app.services.channels import InteractionChannel
+from app.services.conversation import load_recent_messages, save_conversation_turn
 from app.services.gemini import generate_orbit_reply
 from app.services.prompt import build_gemini_contents
 from app.services.user_context import load_user_memories
 
 logger = logging.getLogger(__name__)
-
-
-class InteractionChannel(str, Enum):
-    WHATSAPP = "whatsapp"
-    DASHBOARD = "dashboard"
-    DEV = "dev"
-
 
 UNKNOWN_USER_REPLY = (
     "Hi! I'm Orbit. I don't recognize this WhatsApp number yet. "
@@ -51,6 +45,7 @@ async def process_message(
     *,
     user: User | None,
     channel: InteractionChannel,
+    external_id: str | None = None,
 ) -> OrbitInteractionResult:
     text = message.strip()
     if not text:
@@ -76,13 +71,22 @@ async def process_message(
 
     try:
         memories = await load_user_memories(user)
-        prompt = build_gemini_contents(user, memories, text)
+        history = await load_recent_messages(user)
+        prompt = build_gemini_contents(user, memories, history, text, channel)
         logger.info(
-            "Generating Orbit reply user=%s channel=%s",
+            "Generating Orbit reply user=%s channel=%s history=%s",
             user.id,
             channel.value,
+            len(history),
         )
         reply = await generate_orbit_reply(prompt)
+        await save_conversation_turn(
+            user,
+            channel.value,  # type: ignore[arg-type]
+            text,
+            reply,
+            external_id=external_id,
+        )
         return OrbitInteractionResult(
             reply=reply,
             user=user,

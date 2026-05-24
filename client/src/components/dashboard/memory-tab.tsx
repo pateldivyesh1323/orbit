@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -9,8 +11,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ConversationHistory } from "@/components/dashboard/conversation-history";
 import { MemoryAddForm } from "@/components/dashboard/memory-add-form";
+import { listConversationMessages } from "@/lib/conversation-api";
 import { formatDateTime } from "@/lib/format";
+import type { ConversationChannel, ConversationMessage } from "@/types/conversation";
 import type { LongTermContextItem } from "@/types/context";
 
 type MemoryTabProps = {
@@ -104,36 +109,74 @@ function SyncDataPanel({ items }: { items: LongTermContextItem[] }) {
   return <LongTermMemoryList items={syncItems} />;
 }
 
-function ChatHistoryPanel({ items }: { items: LongTermContextItem[] }) {
-  const chatItems = items.filter(
-    (item) =>
-      item.context_type === "conversation_summary" ||
-      item.source === "whatsapp" ||
-      item.source === "dashboard_chat",
-  );
+function ChatHistoryPanel({
+  token,
+  filter,
+}: {
+  token: string;
+  filter: ConversationChannel | "all";
+}) {
+  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!chatItems.length) {
-    return (
-      <EmptyState
-        title="No chat history stored yet"
-        description="WhatsApp and dashboard conversations will be saved here once conversation memory is enabled."
-      />
-    );
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await listConversationMessages(token, {
+        channel: filter,
+        limit: 200,
+      });
+      setMessages(data);
+    } catch {
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, filter]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (loading) {
+    return <p className="text-muted-foreground text-sm">Loading chat history…</p>;
   }
 
-  return <LongTermMemoryList items={chatItems} />;
+  const emptyCopy =
+    filter === "whatsapp"
+      ? {
+          title: "No WhatsApp messages yet",
+          description:
+            "Message Orbit on WhatsApp and your conversation will appear here.",
+        }
+      : filter === "dashboard"
+        ? {
+            title: "No dashboard chat yet",
+            description: "Use the Chat tab to talk to Orbit from the browser.",
+          }
+        : {
+            title: "No conversations yet",
+            description:
+              "WhatsApp and dashboard messages will be stored here automatically.",
+          };
+
+  return (
+    <ConversationHistory
+      messages={messages}
+      emptyTitle={emptyCopy.title}
+      emptyDescription={emptyCopy.description}
+      showChannel={filter === "all"}
+    />
+  );
 }
 
 export function MemoryTab({ items, token, onItemCreated }: MemoryTabProps) {
   const longTermItems = items.filter(
     (item) =>
-      item.context_type !== "conversation_summary" &&
       item.source !== "cron_sync" &&
       item.source !== "github" &&
       item.source !== "wakatime" &&
-      item.source !== "google_calendar" &&
-      item.source !== "whatsapp" &&
-      item.source !== "dashboard_chat",
+      item.source !== "google_calendar",
   );
 
   return (
@@ -142,29 +185,43 @@ export function MemoryTab({ items, token, onItemCreated }: MemoryTabProps) {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">What Orbit remembers</CardTitle>
           <CardDescription>
-            Everything stored about you — chat summaries, long-term facts, and
-            data pulled from integrations. Orbit uses this as context in every
-            reply.
+            Chat transcripts, long-term facts, and synced integration data —
+            everything Orbit uses as context in every reply.
           </CardDescription>
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="long-term">
+      <Tabs defaultValue="chats">
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+          <TabsTrigger value="chats">Chats</TabsTrigger>
           <TabsTrigger value="long-term">
             Long-term ({longTermItems.length})
           </TabsTrigger>
-          <TabsTrigger value="chats">Chats</TabsTrigger>
           <TabsTrigger value="sync">Synced data</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="chats" className="mt-4 space-y-4">
+          <Tabs defaultValue="whatsapp">
+            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+              <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+              <TabsTrigger value="all">All</TabsTrigger>
+            </TabsList>
+            <TabsContent value="whatsapp" className="mt-4">
+              <ChatHistoryPanel token={token} filter="whatsapp" />
+            </TabsContent>
+            <TabsContent value="dashboard" className="mt-4">
+              <ChatHistoryPanel token={token} filter="dashboard" />
+            </TabsContent>
+            <TabsContent value="all" className="mt-4">
+              <ChatHistoryPanel token={token} filter="all" />
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
 
         <TabsContent value="long-term" className="mt-4 space-y-4">
           <MemoryAddForm token={token} onCreated={onItemCreated} />
           <LongTermMemoryList items={longTermItems} />
-        </TabsContent>
-
-        <TabsContent value="chats" className="mt-4">
-          <ChatHistoryPanel items={items} />
         </TabsContent>
 
         <TabsContent value="sync" className="mt-4">

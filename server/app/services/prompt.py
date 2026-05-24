@@ -1,5 +1,8 @@
 from app.models.context import LongTermContext
+from app.models.conversation import ConversationMessage
 from app.models.user import User
+from app.services.channels import InteractionChannel
+from app.services.conversation import HISTORY_SNIPPET_MAX_CHARS
 
 ORBIT_SYSTEM_INSTRUCTION = """You are Orbit, a personal AI copilot that helps one user with habits, productivity, and health over WhatsApp.
 
@@ -18,6 +21,12 @@ def _format_list(label: str, items: list[str]) -> str:
         return ""
     joined = ", ".join(items)
     return f"- {label}: {joined}\n"
+
+
+def _snippet(text: str, max_chars: int = HISTORY_SNIPPET_MAX_CHARS) -> str:
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 3] + "..."
 
 
 def format_user_context(user: User, memories: list[LongTermContext]) -> str:
@@ -75,6 +84,25 @@ def format_user_context(user: User, memories: list[LongTermContext]) -> str:
     return "\n".join(lines)
 
 
-def build_gemini_contents(user: User, memories: list[LongTermContext], user_message: str) -> str:
+def format_conversation_history(history: list[ConversationMessage]) -> str:
+    if not history:
+        return ""
+    lines = ["\n## Recent conversation"]
+    for message in history:
+        speaker = "User" if message.role == "user" else "Orbit"
+        channel_tag = f" ({message.channel})" if message.channel else ""
+        lines.append(f"{speaker}{channel_tag}: {_snippet(message.content)}")
+    return "\n".join(lines)
+
+
+def build_gemini_contents(
+    user: User,
+    memories: list[LongTermContext],
+    history: list[ConversationMessage],
+    user_message: str,
+    channel: InteractionChannel,
+) -> str:
     context_block = format_user_context(user, memories)
-    return f"{context_block}\n\n## Current WhatsApp message\n{user_message}"
+    history_block = format_conversation_history(history)
+    channel_label = "WhatsApp message" if channel == InteractionChannel.WHATSAPP else "Message"
+    return f"{context_block}{history_block}\n\n## Current {channel_label}\n{user_message}"
