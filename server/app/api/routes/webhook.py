@@ -1,14 +1,14 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Request
 
 from app.integrations.whatsapp.twilio import (
     parse_twilio_form,
     send_whatsapp_message,
     validate_twilio_request,
 )
-from app.services.brain import UNKNOWN_USER_REPLY, generate_reply_for_user
+from app.services.brain import InteractionChannel, process_message
 from app.services.user_context import find_user_by_whatsapp
 
 logger = logging.getLogger(__name__)
@@ -29,21 +29,16 @@ async def whatsapp_webhook(request: Request) -> dict[str, Any]:
     )
 
     user = await find_user_by_whatsapp(inbound.from_number)
-    if user is None:
-        reply = UNKNOWN_USER_REPLY
-    else:
-        try:
-            reply = await generate_reply_for_user(user, inbound.body)
-        except Exception:
-            logger.exception("Failed to generate reply for user %s", user.id)
-            reply = (
-                "I'm having trouble thinking right now. Please try again in a moment."
-            )
+    result = await process_message(
+        inbound.body,
+        user=user,
+        channel=InteractionChannel.WHATSAPP,
+    )
 
     message_sid: str | None = None
     send_error: str | None = None
     try:
-        message_sid = send_whatsapp_message(inbound.from_number, reply)
+        message_sid = send_whatsapp_message(inbound.from_number, result.reply)
     except Exception as exc:
         logger.exception(
             "Failed to send outbound WhatsApp message to %s",
@@ -53,8 +48,9 @@ async def whatsapp_webhook(request: Request) -> dict[str, Any]:
 
     return {
         "status": "ok",
-        "reply": reply,
+        "reply": result.reply,
         "outbound_sid": message_sid,
         "user_found": user is not None,
+        "success": result.success,
         "send_error": send_error,
     }

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.core.config import settings
 from app.models.user import User
 from app.schemas.dev import DevChatRequest
-from app.services.brain import generate_reply_for_user
+from app.services.brain import InteractionChannel, process_message
 from app.services.user_context import find_user_by_whatsapp
 
 logger = logging.getLogger(__name__)
@@ -32,18 +32,20 @@ async def dev_chat(body: DevChatRequest) -> dict[str, Any]:
             detail="No user found. Register via /api/auth/register first.",
         )
 
-    try:
-        reply = await generate_reply_for_user(user, body.message)
-    except Exception as exc:
-        logger.exception("Dev chat failed")
+    result = await process_message(
+        body.message,
+        user=user,
+        channel=InteractionChannel.DEV,
+    )
+    if not result.success:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
+            detail=result.reply,
+        )
 
     return {
-        "user_id": str(user.id),
-        "display_name": user.identity.display_name,
+        "user_id": result.user_id,
+        "display_name": result.display_name,
         "whatsapp_number": user.contact.whatsapp_number,
-        "reply": reply,
+        "reply": result.reply,
     }

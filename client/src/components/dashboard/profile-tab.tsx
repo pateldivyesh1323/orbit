@@ -2,7 +2,6 @@
 
 import { FormEvent, useState } from "react";
 
-import { WhatsAppPhoneInput } from "@/components/auth/whatsapp-phone-input";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +23,6 @@ import {
   timeToApiValue,
 } from "@/lib/form-helpers";
 import { formatList, formatTime } from "@/lib/format";
-import { formatWhatsAppE164, parseWhatsAppE164 } from "@/lib/phone";
 import { updateUserProfile } from "@/lib/users";
 import type { UserProfile, UserProfileUpdate } from "@/types/user";
 
@@ -72,12 +70,19 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
     <div className="grid gap-4 lg:grid-cols-2">
       <EditableSection
         title="Contact"
-        description="How Orbit reaches you"
+        description="Email and phone — WhatsApp is configured under Messaging & automation"
         view={
           <dl className="space-y-3">
             <InfoRow label="Email" value={profile.contact.email} />
-            <InfoRow label="WhatsApp" value={profile.contact.whatsapp_number} />
             <InfoRow label="Phone" value={profile.contact.phone_number} />
+            <InfoRow
+              label="WhatsApp"
+              value={
+                profile.contact.whatsapp_number
+                  ? `${profile.contact.whatsapp_number} (edit in Messaging tab)`
+                  : "Not set — configure in Messaging tab"
+              }
+            />
           </dl>
         }
         form={({ onCancel }) => (
@@ -136,27 +141,21 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
 
       <EditableSection
         title="Orbit preferences"
-        description="How your copilot behaves"
+        description="How your copilot communicates — check-ins and nudges are under Messaging & automation"
         view={
           <dl className="space-y-3">
             <InfoRow
               label="Communication"
               value={profile.orbit_preferences.communication_style}
             />
-            <InfoRow
-              label="Check-ins"
-              value={profile.orbit_preferences.check_in_frequency}
-            />
-            <InfoRow
-              label="Proactive nudges"
-              value={
-                profile.orbit_preferences.proactive_nudges_enabled ? "On" : "Off"
-              }
-            />
             <InfoRow label="Nickname" value={profile.orbit_preferences.nickname} />
             <InfoRow
               label="Topics to avoid"
               value={formatList(profile.orbit_preferences.topics_to_avoid, "—")}
+            />
+            <InfoRow
+              label="Custom instructions"
+              value={profile.orbit_preferences.custom_instructions}
             />
           </dl>
         }
@@ -315,25 +314,17 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
 type FormProps = ProfileTabProps & { onCancel: () => void };
 
 function ContactForm({ profile, token, onProfileUpdated, onCancel }: FormProps) {
-  const parsed = parseWhatsAppE164(profile.contact.whatsapp_number);
   const [email, setEmail] = useState(profile.contact.email);
   const [phone, setPhone] = useState(profile.contact.phone_number ?? "");
-  const [countryCode, setCountryCode] = useState(parsed.countryCode);
-  const [whatsappNational, setWhatsappNational] = useState(parsed.nationalNumber);
   const { save, saving, error } = useSectionSave(token, onProfileUpdated, onCancel);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    let whatsapp_number: string | null = null;
-    if (whatsappNational.trim()) {
-      whatsapp_number =
-        formatWhatsAppE164(countryCode, whatsappNational) ?? null;
-    }
     await save({
       contact: {
         email,
         phone_number: phone.trim() || null,
-        whatsapp_number,
+        whatsapp_number: profile.contact.whatsapp_number,
       },
     });
   }
@@ -359,13 +350,6 @@ function ContactForm({ profile, token, onProfileUpdated, onCancel }: FormProps) 
           onChange={(e) => setPhone(e.target.value)}
         />
       </div>
-      <WhatsAppPhoneInput
-        countryCode={countryCode}
-        nationalNumber={whatsappNational}
-        onCountryCodeChange={setCountryCode}
-        onNationalNumberChange={setWhatsappNational}
-        disabled={saving}
-      />
       <FormError message={error} />
       <FormActions onCancel={onCancel} saving={saving} />
     </form>
@@ -509,10 +493,6 @@ function OrbitPreferencesForm({
   const [communicationStyle, setCommunicationStyle] = useState(
     prefs.communication_style,
   );
-  const [checkInFrequency, setCheckInFrequency] = useState(prefs.check_in_frequency);
-  const [proactiveNudges, setProactiveNudges] = useState(
-    prefs.proactive_nudges_enabled,
-  );
   const [nickname, setNickname] = useState(prefs.nickname ?? "");
   const [topicsToAvoid, setTopicsToAvoid] = useState(listToLines(prefs.topics_to_avoid));
   const [customInstructions, setCustomInstructions] = useState(
@@ -524,9 +504,8 @@ function OrbitPreferencesForm({
     e.preventDefault();
     await save({
       orbit_preferences: {
+        ...prefs,
         communication_style: communicationStyle as typeof prefs.communication_style,
-        check_in_frequency: checkInFrequency as typeof prefs.check_in_frequency,
-        proactive_nudges_enabled: proactiveNudges,
         nickname: nickname.trim() || null,
         topics_to_avoid: linesToList(topicsToAvoid),
         custom_instructions: customInstructions.trim() || null,
@@ -550,27 +529,6 @@ function OrbitPreferencesForm({
           <option value="direct">Direct</option>
         </select>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="check-in-frequency">Check-in frequency</Label>
-        <select
-          id="check-in-frequency"
-          className={selectClassName}
-          value={checkInFrequency}
-          onChange={(e) => setCheckInFrequency(e.target.value)}
-        >
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
-      </div>
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={proactiveNudges}
-          onChange={(e) => setProactiveNudges(e.target.checked)}
-        />
-        Proactive nudges enabled
-      </label>
       <div className="space-y-2">
         <Label htmlFor="nickname">Nickname</Label>
         <Input id="nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} />

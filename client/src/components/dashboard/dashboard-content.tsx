@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,7 +11,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MemoryAddForm } from "@/components/dashboard/memory-add-form";
+import { ChatTab } from "@/components/dashboard/chat-tab";
+import { IntegrationsTab } from "@/components/dashboard/integrations-tab";
+import { MemoryTab } from "@/components/dashboard/memory-tab";
+import { MessagingSettingsTab } from "@/components/dashboard/messaging-settings-tab";
 import { ProfileTab } from "@/components/dashboard/profile-tab";
 import { useAuth, useRequireAuth } from "@/contexts/auth-context";
 import { listContext } from "@/lib/context-api";
@@ -20,16 +22,6 @@ import { formatDateTime } from "@/lib/format";
 import { getUserProfile } from "@/lib/users";
 import type { LongTermContextItem } from "@/types/context";
 import type { UserProfile } from "@/types/user";
-
-const INTEGRATION_PROVIDERS = [
-  { id: "github", name: "GitHub", description: "Commits and activity" },
-  { id: "wakatime", name: "WakaTime", description: "Coding time stats" },
-  {
-    id: "google_calendar",
-    name: "Google Calendar",
-    description: "Events and schedule",
-  },
-] as const;
 
 function StatCard({
   label,
@@ -52,86 +44,6 @@ function StatCard({
         </CardContent>
       ) : null}
     </Card>
-  );
-}
-
-function MemoryTab({
-  items,
-  token,
-  onItemCreated,
-}: {
-  items: LongTermContextItem[];
-  token: string;
-  onItemCreated: (item: LongTermContextItem) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <MemoryAddForm token={token} onCreated={onItemCreated} />
-      {!items.length ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>No memory entries yet</CardTitle>
-            <CardDescription>
-              Long-term context will appear here as Orbit learns about you.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {items.map((item) => (
-            <Card key={item.id}>
-              <CardHeader className="pb-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <CardTitle className="text-base">{item.title}</CardTitle>
-                    <CardDescription>
-                      {formatDateTime(item.created_at)}
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">{item.context_type}</Badge>
-                    <Badge variant="outline">Importance {item.importance}/10</Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p>{item.summary ?? item.content}</p>
-                {item.tags.length ? (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {item.tags.map((tag) => (
-                      <Badge key={tag} variant="outline">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function IntegrationsTab() {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {INTEGRATION_PROVIDERS.map((provider) => (
-        <Card key={provider.id}>
-          <CardHeader>
-            <CardTitle className="text-base">{provider.name}</CardTitle>
-            <CardDescription>{provider.description}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between gap-3">
-            <Badge variant="outline">Not connected</Badge>
-            <Button variant="outline" disabled>
-              Connect
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
   );
 }
 
@@ -171,14 +83,15 @@ export function DashboardContent() {
     profile?.identity.display_name ?? user?.display_name ?? "there";
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-8">
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">
             Welcome back, {displayName}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Your Orbit command center for profile, memory, and integrations.
+            Chat with Orbit, review what it knows, and configure how it reaches
+            you.
           </p>
         </div>
         <Button
@@ -197,7 +110,9 @@ export function DashboardContent() {
       {error ? (
         <Card className="border-destructive/50">
           <CardHeader>
-            <CardTitle className="text-destructive">Could not load dashboard</CardTitle>
+            <CardTitle className="text-destructive">
+              Could not load dashboard
+            </CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
           <CardContent>
@@ -214,22 +129,32 @@ export function DashboardContent() {
             <StatCard
               label="WhatsApp"
               value={profile.contact.whatsapp_number ? "Linked" : "Not set"}
-              hint={profile.contact.whatsapp_number ?? "Add number in profile"}
+              hint={
+                profile.contact.whatsapp_number ??
+                "Configure in Messaging & automation"
+              }
             />
             <StatCard label="Timezone" value={profile.location.timezone} />
             <StatCard label="Memory entries" value={String(memory.length)} />
             <StatCard
-              label="Focus areas"
-              value={String(profile.goals.focus_areas.length)}
+              label="Check-ins"
+              value={profile.orbit_preferences.check_in_frequency}
             />
           </div>
 
-          <Tabs defaultValue="profile">
-            <TabsList>
+          <Tabs defaultValue="chat">
+            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+              <TabsTrigger value="chat">Chat</TabsTrigger>
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="memory">Memory ({memory.length})</TabsTrigger>
+              <TabsTrigger value="messaging">Messaging & automation</TabsTrigger>
               <TabsTrigger value="integrations">Integrations</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="chat" className="mt-4">
+              <ChatTab token={token} displayName={displayName} />
+            </TabsContent>
+
             <TabsContent value="profile" className="mt-4">
               <ProfileTab
                 profile={profile}
@@ -237,15 +162,23 @@ export function DashboardContent() {
                 onProfileUpdated={setProfile}
               />
             </TabsContent>
+
             <TabsContent value="memory" className="mt-4">
               <MemoryTab
                 items={memory}
                 token={token}
-                onItemCreated={(item) =>
-                  setMemory((prev) => [item, ...prev])
-                }
+                onItemCreated={(item) => setMemory((prev) => [item, ...prev])}
               />
             </TabsContent>
+
+            <TabsContent value="messaging" className="mt-4">
+              <MessagingSettingsTab
+                profile={profile}
+                token={token}
+                onProfileUpdated={setProfile}
+              />
+            </TabsContent>
+
             <TabsContent value="integrations" className="mt-4">
               <IntegrationsTab />
             </TabsContent>

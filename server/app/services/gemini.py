@@ -22,7 +22,6 @@ def _generate_sync(user_prompt: str) -> str:
         ),
     )
     text = response.text
-    print("Response:", text)
     if not text:
         raise ValueError("Gemini returned an empty response")
     return text.strip()
