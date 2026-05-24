@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 
-export function AuthNav() {
+export function AuthNav({ variant = "default" }: { variant?: "default" | "dashboard" }) {
   const router = useRouter();
   const { user, isLoading, isAuthenticated, logout } = useAuth();
 
@@ -22,6 +22,18 @@ export function AuthNav() {
   }
 
   if (isAuthenticated && user) {
+    if (variant === "dashboard") {
+      return (
+        <button
+          type="button"
+          onClick={handleLogout}
+          className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+        >
+          Log out
+        </button>
+      );
+    }
+
     return (
       <nav className="flex items-center gap-2">
         <span className="text-muted-foreground hidden text-sm sm:inline">

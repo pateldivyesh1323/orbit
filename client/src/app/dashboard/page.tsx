@@ -1,10 +1,8 @@
-import { SiteHeader } from "@/components/site-header";
 import { DashboardContent } from "@/components/dashboard/dashboard-content";
 
 export default function DashboardPage() {
   return (
-    <div className="flex min-h-full flex-col">
-      <SiteHeader />
+    <div className="flex h-dvh flex-col overflow-hidden">
       <DashboardContent />
     </div>
   );

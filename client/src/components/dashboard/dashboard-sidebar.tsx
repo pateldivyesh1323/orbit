@@ -1,14 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import {
   Bot,
   MessageCircle,
+  Orbit,
   Plug,
   RefreshCw,
   Sparkles,
   User,
 } from "lucide-react";
 
+import { AuthNav } from "@/components/auth-nav";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -79,17 +82,27 @@ export function DashboardSidebar({
   ];
 
   return (
-    <aside className="flex w-full flex-col border-border/60 lg:w-60 lg:shrink-0 lg:border-r">
-      <div className="hidden border-b border-border/60 px-4 py-4 lg:block">
-        <p className="text-xs font-medium uppercase tracking-wider text-primary">
-          Dashboard
-        </p>
-        <p className="mt-1 truncate text-sm font-semibold tracking-tight">
-          {displayName}
-        </p>
+    <aside className="flex w-full shrink-0 flex-col border-border/60 bg-background lg:h-full lg:min-h-0 lg:w-64 lg:shrink-0 lg:border-r">
+      <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3 lg:flex-col lg:items-stretch lg:gap-4 lg:py-4">
+        <Link
+          href="/"
+          className="group flex items-center gap-2 text-lg font-semibold tracking-tight"
+        >
+          <span className="relative inline-flex size-8 items-center justify-center rounded-lg bg-linear-to-br from-primary to-primary/70 text-primary-foreground shadow-sm shadow-primary/20">
+            <Orbit className="size-4" strokeWidth={2.25} />
+          </span>
+          <span>Orbit</span>
+        </Link>
+        <div className="hidden lg:block">
+          <p className="truncate text-sm font-medium">{displayName}</p>
+          <p className="text-muted-foreground text-xs">Dashboard</p>
+        </div>
+        <div className="lg:hidden">
+          <AuthNav variant="dashboard" />
+        </div>
       </div>
 
-      <nav className="flex gap-1 overflow-x-auto p-2 lg:flex-col lg:overflow-x-visible lg:p-3">
+      <nav className="flex gap-1 overflow-x-auto border-b border-border/60 p-2 lg:flex-col lg:overflow-x-visible lg:border-b-0 lg:p-3">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.id;
@@ -136,7 +149,7 @@ export function DashboardSidebar({
         })}
       </nav>
 
-      <div className="mt-auto hidden border-t border-border/60 p-3 lg:block">
+      <div className="mt-auto hidden flex-col gap-2 border-t border-border/60 p-3 lg:flex">
         <Button
           variant="outline"
           size="sm"
@@ -147,6 +160,7 @@ export function DashboardSidebar({
           <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
           Refresh data
         </Button>
+        <AuthNav variant="dashboard" />
       </div>
     </aside>
   );
