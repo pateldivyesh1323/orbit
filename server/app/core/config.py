@@ -24,6 +24,9 @@ class Settings(BaseSettings):
 
     enable_dev_routes: bool = True
 
+    integration_encryption_key: str | None = None
+    cron_secret: str | None = None
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

@@ -6,7 +6,7 @@ from app.services.channels import InteractionChannel
 from app.services.conversation import load_recent_messages, save_conversation_turn
 from app.services.gemini import generate_orbit_reply
 from app.services.prompt import build_gemini_contents
-from app.services.user_context import load_user_memories
+from app.services.user_context import load_live_signals, load_user_memories
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +71,17 @@ async def process_message(
 
     try:
         memories = await load_user_memories(user)
+        live_signals = await load_live_signals(user)
         history = await load_recent_messages(user)
-        prompt = build_gemini_contents(user, memories, history, text, channel)
+        prompt = build_gemini_contents(
+            user, memories, history, text, channel, live_signals=live_signals
+        )
         logger.info(
-            "Generating Orbit reply user=%s channel=%s history=%s",
+            "Generating Orbit reply user=%s channel=%s history=%s signals=%s",
             user.id,
             channel.value,
             len(history),
+            len(live_signals),
         )
         reply = await generate_orbit_reply(prompt)
         await save_conversation_turn(

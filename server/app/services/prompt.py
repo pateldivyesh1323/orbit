@@ -194,14 +194,40 @@ def format_conversation_history(history: list[ConversationMessage]) -> str:
     return "\n".join(lines)
 
 
+_SIGNAL_LABELS = {
+    "wakatime": "WakaTime",
+    "github": "GitHub",
+    "google_calendar": "Google Calendar",
+    "cron_sync": "Synced data",
+}
+
+
+def format_live_signals(signals: list[LongTermContext]) -> str:
+    if not signals:
+        return ""
+    lines = ["\n## Live activity (synced from connected tools)"]
+    for item in signals:
+        label = _SIGNAL_LABELS.get(item.source, item.source)
+        body = item.summary or item.content
+        if len(body) > 500:
+            body = body[:497] + "..."
+        lines.append(f"- {label} — {item.title}: {body}")
+    return "\n".join(lines)
+
+
 def build_gemini_contents(
     user: User,
     memories: list[LongTermContext],
     history: list[ConversationMessage],
     user_message: str,
     channel: InteractionChannel,
+    live_signals: list[LongTermContext] | None = None,
 ) -> str:
     context_block = format_user_context(user, memories)
+    signals_block = format_live_signals(live_signals or [])
     history_block = format_conversation_history(history)
     channel_label = "WhatsApp message" if channel == InteractionChannel.WHATSAPP else "Message"
-    return f"{context_block}{history_block}\n\n## Current {channel_label}\n{user_message}"
+    return (
+        f"{context_block}{signals_block}{history_block}\n\n"
+        f"## Current {channel_label}\n{user_message}"
+    )

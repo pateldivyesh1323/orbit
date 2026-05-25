@@ -210,7 +210,7 @@ export function DashboardContent() {
                 ) : null}
 
                 {activeSection === "integrations" ? (
-                  <IntegrationsTab />
+                  <IntegrationsTab token={token} />
                 ) : null}
 
                 <p className="text-muted-foreground text-xs">

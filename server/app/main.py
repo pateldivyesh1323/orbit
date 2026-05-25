@@ -4,7 +4,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import init_db, close_db
-from app.api.routes import auth, chat, context, conversations, dev, health, users, webhook
+from app.api.routes import (
+    auth,
+    chat,
+    context,
+    conversations,
+    dev,
+    health,
+    integrations,
+    users,
+    webhook,
+)
 from app.core.config import settings
 
 
@@ -31,6 +41,7 @@ app.include_router(users.router)
 app.include_router(context.router)
 app.include_router(conversations.router)
 app.include_router(chat.router)
+app.include_router(integrations.router)
 app.include_router(webhook.router)
 if settings.enable_dev_routes:
     app.include_router(dev.router)
