@@ -8,6 +8,7 @@ from app.models.conversation import ConversationMessage
 from app.models.user import User
 from app.services.channels import InteractionChannel
 from app.services.context.sections import (
+    render_current_time_block,
     render_history_block,
     render_live_signals_block,
     render_user_profile_block,
@@ -36,7 +37,8 @@ class ContextBundle:
         user_message: str | None = None,
     ) -> str:
         sections = [
-            render_user_profile_block(self.user, self.memories),
+            render_current_time_block(self.user),
+            "\n" + render_user_profile_block(self.user, self.memories),
             render_live_signals_block(self.live_signals),
             render_history_block(self.history),
         ]
@@ -60,13 +62,19 @@ def _proactive_task_block(channel: InteractionChannel) -> str:
     return (
         "\n\n## Current task — proactive check-in\n"
         f"You are initiating contact with the user via {medium}. They did not just message you. "
-        "Use the context above (live activity, profile, memories, recent conversation) to decide what to say.\n"
-        "- If you have something genuinely useful — a relevant nudge, a check on a goal, a "
-        "follow-up on yesterday's activity — say it concisely (1–3 sentences) and end with an "
-        "open question or a small actionable suggestion.\n"
-        "- If recent conversation already covered the topic, or there is nothing useful to add right "
-        "now, respond with the single token <SKIP> (no other text). Do not send filler greetings.\n"
-        "- Respect the user's communication style and quiet preferences. Never repeat yourself.\n"
+        "Send a short, useful message (1–3 sentences) ending with one focused question or a tiny "
+        "actionable suggestion. Pick the most relevant angle from the context:\n"
+        "- Their stated goals, focus areas, or weekly priorities\n"
+        "- Live activity (e.g., yesterday's WakaTime coding, recent commits)\n"
+        "- Time of day (morning intentions, evening reflections, lunch break)\n"
+        "- Habits they're trying to build or break\n"
+        "- A follow-up on something you discussed earlier (without literally repeating it)\n\n"
+        "Style: no greetings, no \"hi\", no \"how are you?\" — lead with substance. "
+        "Match their communication style. Don't be saccharine; be a useful copilot.\n\n"
+        "Skip only in these specific cases. If skipping, respond with exactly <SKIP> and nothing else:\n"
+        "- The very last assistant turn in recent conversation already said the same thing you would say now\n"
+        "- The user explicitly asked not to be bothered in the last few turns\n"
+        "- Context is so thin (no goals, no activity, no history) that anything you say would be a generic greeting\n"
     )
 
 

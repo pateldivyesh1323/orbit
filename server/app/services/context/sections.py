@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.core.timezone import format_user_local_datetime
+from app.core.timezone import get_user_now, part_of_day
 from app.models.context import LongTermContext
 from app.models.conversation import ConversationMessage
 from app.models.user import User
@@ -35,10 +35,6 @@ def _format_location(user: User) -> list[str]:
         lines.append(f"- Location: {', '.join(place_parts)}")
     lines.append(f"- Timezone: {loc.timezone}")
 
-    local_time = format_user_local_datetime(loc.timezone)
-    if local_time:
-        lines.append(f"- User's local time: {local_time}")
-
     if loc.locale:
         lines.append(f"- Locale: {loc.locale}")
     if loc.languages:
@@ -46,6 +42,22 @@ def _format_location(user: User) -> list[str]:
     if loc.nationality:
         lines.append(f"- Nationality: {loc.nationality}")
     return lines
+
+
+def render_current_time_block(user: User) -> str:
+    """Authoritative 'right now' block — must appear first so the model anchors on it."""
+    now = get_user_now(user.location.timezone)
+    if now is None:
+        return ""
+    label = part_of_day(now)
+    formatted = now.strftime("%A, %B %d, %Y at %I:%M %p %Z")
+    return (
+        "## Right now (use this as the authoritative current time — do not rely on prior knowledge)\n"
+        f"- Local datetime: {formatted}\n"
+        f"- Timezone: {user.location.timezone}\n"
+        f"- Time of day: {label}\n"
+        f"- Weekday: {now.strftime('%A')}\n"
+    )
 
 
 def _format_work(work) -> list[str]:

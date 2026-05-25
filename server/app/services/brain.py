@@ -145,10 +145,15 @@ async def process_proactive_check_in(
             tools=tools,
         )
         text = (gemini_reply.text or "").strip()
-        if not text or PROACTIVE_SKIP_TOKEN in text:
-            logger.info("Proactive skip for user=%s", user.id)
+        is_skip = not text or text == PROACTIVE_SKIP_TOKEN or text.startswith(
+            f"{PROACTIVE_SKIP_TOKEN}\n"
+        )
+        if is_skip:
+            logger.info(
+                "Proactive skip for user=%s raw_reply=%r", user.id, text[:200]
+            )
             return OrbitInteractionResult(
-                reply="",
+                reply=text,
                 user=user,
                 channel=channel,
                 mode=AgentMode.PROACTIVE,
