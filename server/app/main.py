@@ -9,6 +9,7 @@ from app.api.routes import (
     chat,
     context,
     conversations,
+    cron,
     dev,
     health,
     integrations,
@@ -42,6 +43,7 @@ app.include_router(context.router)
 app.include_router(conversations.router)
 app.include_router(chat.router)
 app.include_router(integrations.router)
+app.include_router(cron.router)
 app.include_router(webhook.router)
 if settings.enable_dev_routes:
     app.include_router(dev.router)

@@ -1,12 +1,16 @@
+from __future__ import annotations
+
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 from app.models.user import User
 from app.services.channels import InteractionChannel
-from app.services.conversation import load_recent_messages, save_conversation_turn
+from app.services.context import AgentMode, assemble_context
+from app.services.conversation import save_conversation_turn
 from app.services.gemini import generate_orbit_reply
-from app.services.prompt import build_gemini_contents
-from app.services.user_context import load_live_signals, load_user_memories
+from app.services.prompt import system_instruction_for
+from app.services.tools import build_user_tool_bindings
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +25,18 @@ GENERATION_ERROR_REPLY = (
     "I'm having trouble thinking right now. Please try again in a moment."
 )
 
+PROACTIVE_SKIP_TOKEN = "<SKIP>"
+
 
 @dataclass
 class OrbitInteractionResult:
     reply: str
     user: User | None
     channel: InteractionChannel
+    mode: AgentMode = AgentMode.REACTIVE
     success: bool = True
+    skipped: bool = False
+    tool_calls: list[dict] = field(default_factory=list)
 
     @property
     def user_id(self) -> str | None:
@@ -47,20 +56,17 @@ async def process_message(
     channel: InteractionChannel,
     external_id: str | None = None,
 ) -> OrbitInteractionResult:
+    """Reactive path — the user just sent a message and expects a reply."""
     text = message.strip()
     if not text:
         return OrbitInteractionResult(
-            reply=EMPTY_MESSAGE_REPLY,
-            user=user,
-            channel=channel,
+            reply=EMPTY_MESSAGE_REPLY, user=user, channel=channel
         )
 
     if user is None:
         if channel == InteractionChannel.WHATSAPP:
             return OrbitInteractionResult(
-                reply=UNKNOWN_USER_REPLY,
-                user=None,
-                channel=channel,
+                reply=UNKNOWN_USER_REPLY, user=None, channel=channel
             )
         return OrbitInteractionResult(
             reply=GENERATION_ERROR_REPLY,
@@ -70,20 +76,24 @@ async def process_message(
         )
 
     try:
-        memories = await load_user_memories(user)
-        live_signals = await load_live_signals(user)
-        history = await load_recent_messages(user)
-        prompt = build_gemini_contents(
-            user, memories, history, text, channel, live_signals=live_signals
+        bundle = await assemble_context(user)
+        prompt = bundle.render_prompt(
+            mode=AgentMode.REACTIVE, channel=channel, user_message=text
         )
+        tools = build_user_tool_bindings(user)
         logger.info(
-            "Generating Orbit reply user=%s channel=%s history=%s signals=%s",
+            "Generating reactive reply user=%s channel=%s history=%s signals=%s",
             user.id,
             channel.value,
-            len(history),
-            len(live_signals),
+            len(bundle.history),
+            len(bundle.live_signals),
         )
-        reply = await generate_orbit_reply(prompt)
+        gemini_reply = await generate_orbit_reply(
+            prompt,
+            system_instruction=system_instruction_for(AgentMode.REACTIVE),
+            tools=tools,
+        )
+        reply = gemini_reply.text or GENERATION_ERROR_REPLY
         await save_conversation_turn(
             user,
             channel.value,  # type: ignore[arg-type]
@@ -95,10 +105,12 @@ async def process_message(
             reply=reply,
             user=user,
             channel=channel,
+            mode=AgentMode.REACTIVE,
+            tool_calls=gemini_reply.tool_calls,
         )
     except Exception:
         logger.exception(
-            "Orbit generation failed user=%s channel=%s",
+            "Orbit reactive generation failed user=%s channel=%s",
             user.id,
             channel.value,
         )
@@ -107,4 +119,61 @@ async def process_message(
             user=user,
             channel=channel,
             success=False,
+        )
+
+
+async def process_proactive_check_in(
+    user: User,
+    *,
+    channel: InteractionChannel,
+) -> OrbitInteractionResult:
+    """Proactive path — Orbit initiates contact. The reply may be <SKIP> to stay quiet."""
+    try:
+        bundle = await assemble_context(user)
+        prompt = bundle.render_prompt(
+            mode=AgentMode.PROACTIVE, channel=channel, user_message=None
+        )
+        tools = build_user_tool_bindings(user)
+        logger.info(
+            "Generating proactive check-in user=%s channel=%s",
+            user.id,
+            channel.value,
+        )
+        gemini_reply = await generate_orbit_reply(
+            prompt,
+            system_instruction=system_instruction_for(AgentMode.PROACTIVE),
+            tools=tools,
+        )
+        text = (gemini_reply.text or "").strip()
+        if not text or PROACTIVE_SKIP_TOKEN in text:
+            logger.info("Proactive skip for user=%s", user.id)
+            return OrbitInteractionResult(
+                reply="",
+                user=user,
+                channel=channel,
+                mode=AgentMode.PROACTIVE,
+                skipped=True,
+                tool_calls=gemini_reply.tool_calls,
+            )
+
+        user.orbit_preferences.last_proactive_check_in_at = datetime.now(timezone.utc)
+        user.touch_updated()
+        await user.save()
+
+        return OrbitInteractionResult(
+            reply=text,
+            user=user,
+            channel=channel,
+            mode=AgentMode.PROACTIVE,
+            tool_calls=gemini_reply.tool_calls,
+        )
+    except Exception:
+        logger.exception("Proactive check-in failed user=%s", user.id)
+        return OrbitInteractionResult(
+            reply="",
+            user=user,
+            channel=channel,
+            mode=AgentMode.PROACTIVE,
+            success=False,
+            skipped=True,
         )

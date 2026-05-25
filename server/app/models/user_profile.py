@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -152,13 +152,25 @@ class UserWork(BaseModel):
         return data
 
 
+CheckInFrequency = Literal["off", "low", "medium", "high"]
+
+
 class UserOrbitPreferences(BaseModel):
     communication_style: Literal["casual", "professional", "motivating", "direct"] = "motivating"
-    check_in_frequency: Literal["low", "medium", "high"] = "medium"
+    check_in_frequency: CheckInFrequency = "medium"
     proactive_nudges_enabled: bool = True
     nickname: str | None = None
     topics_to_avoid: list[str] = Field(default_factory=list)
     custom_instructions: str | None = None
+    quiet_hours_start: str | None = None
+    quiet_hours_end: str | None = None
+    snooze_until: datetime | None = None
+    last_proactive_check_in_at: datetime | None = None
+
+    @field_validator("quiet_hours_start", "quiet_hours_end", mode="before")
+    @classmethod
+    def validate_quiet_hours(cls, value: str | None) -> str | None:
+        return normalize_time_value(value)
 
 
 class EmergencyContact(BaseModel):

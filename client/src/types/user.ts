@@ -84,13 +84,19 @@ export type UserWork = {
   career_goals: string[];
 };
 
+export type CheckInFrequency = "off" | "low" | "medium" | "high";
+
 export type UserOrbitPreferences = {
   communication_style: string;
-  check_in_frequency: string;
+  check_in_frequency: CheckInFrequency;
   proactive_nudges_enabled: boolean;
   nickname: string | null;
   topics_to_avoid: string[];
   custom_instructions: string | null;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+  snooze_until: string | null;
+  last_proactive_check_in_at: string | null;
 };
 
 export type UserEmergency = {
