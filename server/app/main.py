@@ -17,13 +17,18 @@ from app.api.routes import (
     webhook,
 )
 from app.core.config import settings
+from app.services.scheduler import start_background_jobs, stop_background_jobs
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    yield
-    await close_db()
+    start_background_jobs()
+    try:
+        yield
+    finally:
+        await stop_background_jobs()
+        await close_db()
 
 
 app = FastAPI(title="Orbit Backend", lifespan=lifespan)

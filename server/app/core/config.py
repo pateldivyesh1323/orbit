@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     integration_encryption_key: str | None = None
     cron_secret: str | None = None
 
+    background_scheduler_enabled: bool = True
+    scheduler_sync_interval_minutes: int = 60
+    scheduler_nudge_interval_minutes: int = 15
+    scheduler_initial_delay_seconds: int = 15
+
     frontend_url: str = "http://localhost:3000"
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -100,6 +101,34 @@ async def _run_sync(doc: Integration, user: User) -> LongTermContext:
     )
 
 
+async def _kick_initial_sync(doc: Integration, user: User) -> None:
+    """Fire-and-forget initial sync so newly connected integrations populate immediately."""
+    try:
+        context = await _run_sync(doc, user)
+    except Exception as exc:
+        logger.warning(
+            "Initial sync failed for integration=%s provider=%s: %s",
+            doc.id,
+            doc.provider,
+            exc,
+        )
+        doc.status = "error"
+        doc.last_sync_error = str(exc)[:300]
+        doc.touch_updated()
+        await doc.save()
+        return
+
+    doc.status = "active"
+    doc.last_synced_at = datetime.now(timezone.utc)
+    doc.last_sync_summary = context.summary
+    doc.last_sync_error = None
+    doc.touch_updated()
+    await doc.save()
+    logger.info(
+        "Initial sync ok integration=%s provider=%s", doc.id, doc.provider
+    )
+
+
 @router.get("", response_model=list[IntegrationResponse])
 async def list_integrations(
     current_user: User = Depends(get_current_user),
@@ -162,6 +191,7 @@ async def connect_integration(
         existing.last_sync_error = None
         existing.touch_updated()
         await existing.save()
+        asyncio.create_task(_kick_initial_sync(existing, current_user))
         return integration_to_response(existing)
 
     doc = Integration(
@@ -171,6 +201,7 @@ async def connect_integration(
         status="active",
     )
     await doc.insert()
+    asyncio.create_task(_kick_initial_sync(doc, current_user))
     return integration_to_response(doc)
 
 
@@ -291,6 +322,19 @@ async def google_calendar_oauth_callback(
             "google_calendar", "error", detail="no_refresh_token"
         )
 
+    granted_scopes = (tokens.get("scope") or "").split()
+    if "https://www.googleapis.com/auth/calendar.readonly" not in granted_scopes:
+        logger.warning(
+            "Google OAuth missing calendar.readonly scope for user=%s granted=%s",
+            user.id,
+            granted_scopes,
+        )
+        return _dashboard_redirect(
+            "google_calendar",
+            "error",
+            detail="calendar_scope_not_granted",
+        )
+
     from datetime import timedelta
 
     expires_at = datetime.now(timezone.utc) + timedelta(
@@ -314,13 +358,16 @@ async def google_calendar_oauth_callback(
         existing.last_sync_error = None
         existing.touch_updated()
         await existing.save()
+        target = existing
     else:
-        doc = Integration(
+        target = Integration(
             user=user,
             provider="google_calendar",
             credentials=encrypted_credentials,
             status="active",
         )
-        await doc.insert()
+        await target.insert()
+
+    asyncio.create_task(_kick_initial_sync(target, user))
 
     return _dashboard_redirect("google_calendar", "connected")
