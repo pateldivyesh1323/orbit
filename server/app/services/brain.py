@@ -82,7 +82,7 @@ async def process_message(
         prompt = bundle.render_prompt(
             mode=AgentMode.REACTIVE, channel=channel, user_message=text
         )
-        tools = build_user_tool_bindings(user)
+        tools = await build_user_tool_bindings(user)
         logger.info(
             "Generating reactive reply user=%s channel=%s history=%s signals=%s",
             user.id,
@@ -138,7 +138,7 @@ async def process_proactive_check_in(
         prompt = bundle.render_prompt(
             mode=AgentMode.PROACTIVE, channel=channel, user_message=None
         )
-        tools = build_user_tool_bindings(user)
+        tools = await build_user_tool_bindings(user)
         logger.info(
             "Generating proactive check-in user=%s channel=%s",
             user.id,
