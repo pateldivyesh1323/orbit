@@ -2,16 +2,36 @@ import logging
 from datetime import datetime, timezone
 
 from beanie import PydanticObjectId
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import RedirectResponse
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.core.integration_security import encrypt_secret
+from app.integrations.google_calendar.client import (
+    CalendarAuthError,
+    CalendarError,
+)
+from app.integrations.google_calendar.oauth import (
+    OAuthConfigError,
+    OAuthExchangeError,
+    OAuthStateError,
+    build_authorization_url,
+    exchange_code,
+    issue_state_token,
+    verify_state_token,
+)
+from app.integrations.google_calendar.sync import (
+    GoogleCalendarSyncError,
+    sync_google_calendar,
+)
 from app.integrations.wakatime.client import (
     WakaTimeAuthError,
     WakaTimeError,
     verify_api_key,
 )
 from app.integrations.wakatime.sync import sync_wakatime
+from app.models.context import LongTermContext
 from app.models.integration import Integration
 from app.models.user import User
 from app.schemas.integration import (
@@ -59,6 +79,27 @@ async def get_owned_integration(integration_id: str, user: User) -> Integration:
     return doc
 
 
+def _dashboard_redirect(provider: str, status_str: str, detail: str | None = None) -> RedirectResponse:
+    base = settings.frontend_url.rstrip("/")
+    qs = f"integration={provider}&status={status_str}"
+    if detail:
+        from urllib.parse import quote
+
+        qs += f"&detail={quote(detail)}"
+    return RedirectResponse(url=f"{base}/dashboard?{qs}")
+
+
+async def _run_sync(doc: Integration, user: User) -> LongTermContext:
+    if doc.provider == "wakatime":
+        return await sync_wakatime(doc, user)
+    if doc.provider == "google_calendar":
+        return await sync_google_calendar(doc, user)
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Sync not implemented for provider '{doc.provider}'",
+    )
+
+
 @router.get("", response_model=list[IntegrationResponse])
 async def list_integrations(
     current_user: User = Depends(get_current_user),
@@ -78,6 +119,11 @@ async def connect_integration(
     body: IntegrationConnectRequest,
     current_user: User = Depends(get_current_user),
 ) -> IntegrationResponse:
+    if body.provider == "google_calendar":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Use POST /api/integrations/oauth/google_calendar/start for Google Calendar",
+        )
     if body.provider != "wakatime":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -144,15 +190,9 @@ async def trigger_integration_sync(
 ) -> IntegrationSyncResponse:
     doc = await get_owned_integration(integration_id, current_user)
 
-    if doc.provider != "wakatime":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Sync not implemented for provider '{doc.provider}'",
-        )
-
     try:
-        context = await sync_wakatime(doc, current_user)
-    except WakaTimeAuthError as exc:
+        context = await _run_sync(doc, current_user)
+    except (WakaTimeAuthError, CalendarAuthError) as exc:
         doc.status = "error"
         doc.last_sync_error = str(exc)
         doc.touch_updated()
@@ -161,7 +201,7 @@ async def trigger_integration_sync(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
-    except WakaTimeError as exc:
+    except (WakaTimeError, CalendarError, GoogleCalendarSyncError) as exc:
         doc.status = "error"
         doc.last_sync_error = str(exc)
         doc.touch_updated()
@@ -170,8 +210,10 @@ async def trigger_integration_sync(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
-        logger.exception("WakaTime sync failed for integration=%s", doc.id)
+        logger.exception("Sync failed for integration=%s", doc.id)
         doc.status = "error"
         doc.last_sync_error = "Unexpected sync error"
         doc.touch_updated()
@@ -193,3 +235,92 @@ async def trigger_integration_sync(
         context_summary=context.summary,
         context_metadata=context.metadata,
     )
+
+
+# --- Google Calendar OAuth ---
+
+
+@router.post("/oauth/google_calendar/start")
+async def google_calendar_oauth_start(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    try:
+        state = issue_state_token(str(current_user.id))
+        url = build_authorization_url(state)
+    except OAuthConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    return {"authorization_url": url}
+
+
+@router.get("/oauth/google_calendar/callback")
+async def google_calendar_oauth_callback(
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+    error: str | None = Query(default=None),
+) -> RedirectResponse:
+    if error:
+        return _dashboard_redirect("google_calendar", "error", detail=error)
+
+    if not code or not state:
+        return _dashboard_redirect("google_calendar", "error", detail="missing_params")
+
+    try:
+        user_id = verify_state_token(state)
+    except OAuthStateError as exc:
+        return _dashboard_redirect("google_calendar", "error", detail=str(exc))
+
+    user = await User.get(user_id)
+    if user is None or not user.is_active:
+        return _dashboard_redirect("google_calendar", "error", detail="user_not_found")
+
+    try:
+        tokens = await exchange_code(code)
+    except OAuthConfigError as exc:
+        return _dashboard_redirect("google_calendar", "error", detail=str(exc))
+    except OAuthExchangeError as exc:
+        logger.warning("Google OAuth exchange failed for user=%s: %s", user.id, exc)
+        return _dashboard_redirect("google_calendar", "error", detail="token_exchange_failed")
+
+    refresh_token = tokens.get("refresh_token")
+    access_token = tokens.get("access_token")
+    if not refresh_token or not access_token:
+        return _dashboard_redirect(
+            "google_calendar", "error", detail="no_refresh_token"
+        )
+
+    from datetime import timedelta
+
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        seconds=int(tokens.get("expires_in", 3600))
+    )
+
+    encrypted_credentials = {
+        "refresh_token": encrypt_secret(refresh_token),
+        "access_token": encrypt_secret(access_token),
+        "expires_at": expires_at.isoformat(),
+        "scope": tokens.get("scope", ""),
+    }
+
+    existing = await Integration.find_one(
+        Integration.user.id == user.id,
+        Integration.provider == "google_calendar",
+    )
+    if existing is not None:
+        existing.credentials = encrypted_credentials
+        existing.status = "active"
+        existing.last_sync_error = None
+        existing.touch_updated()
+        await existing.save()
+    else:
+        doc = Integration(
+            user=user,
+            provider="google_calendar",
+            credentials=encrypted_credentials,
+            status="active",
+        )
+        await doc.insert()
+
+    return _dashboard_redirect("google_calendar", "connected")

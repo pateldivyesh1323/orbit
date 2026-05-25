@@ -43,3 +43,15 @@ export function syncIntegration(
     },
   );
 }
+
+export function startGoogleCalendarOAuth(
+  token: string,
+): Promise<{ authorization_url: string }> {
+  return apiFetch<{ authorization_url: string }>(
+    "/api/integrations/oauth/google_calendar/start",
+    {
+      method: "POST",
+      token,
+    },
+  );
+}

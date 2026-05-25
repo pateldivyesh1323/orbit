@@ -29,6 +29,7 @@ import {
   connectIntegration,
   disconnectIntegration,
   listIntegrations,
+  startGoogleCalendarOAuth,
   syncIntegration,
 } from "@/lib/integrations-api";
 import { formatDateTime } from "@/lib/format";
@@ -39,11 +40,14 @@ import type {
   IntegrationStatus,
 } from "@/types/integration";
 
+type ConnectStrategy = "api_key" | "oauth";
+
 type ProviderMeta = {
   id: IntegrationProvider;
   name: string;
   description: string;
   available: boolean;
+  strategy: ConnectStrategy;
   helpUrl?: string;
   helpLabel?: string;
   icon: typeof Plug;
@@ -51,11 +55,21 @@ type ProviderMeta = {
 
 const PROVIDERS: ProviderMeta[] = [
   {
+    id: "google_calendar",
+    name: "Google Calendar",
+    description:
+      "Today's events, tomorrow's schedule, and free blocks so Orbit can suggest when to focus.",
+    available: true,
+    strategy: "oauth",
+    icon: Calendar,
+  },
+  {
     id: "wakatime",
     name: "WakaTime",
     description:
       "Daily coding time and language breakdowns feed Orbit's prompt as fresh activity.",
     available: true,
+    strategy: "api_key",
     helpUrl: "https://wakatime.com/api-key",
     helpLabel: "Get your API key",
     icon: Plug,
@@ -65,15 +79,8 @@ const PROVIDERS: ProviderMeta[] = [
     name: "GitHub",
     description: "Commits, PRs, and coding streaks — coming soon.",
     available: false,
+    strategy: "api_key",
     icon: Code2,
-  },
-  {
-    id: "google_calendar",
-    name: "Google Calendar",
-    description:
-      "Today's events and free blocks for smarter nudges — coming soon.",
-    available: false,
-    icon: Calendar,
   },
 ];
 
@@ -106,10 +113,40 @@ function statusBadge(status: IntegrationStatus | "disconnected") {
   }
 }
 
+type CallbackStatus = {
+  provider: IntegrationProvider;
+  kind: "success" | "error";
+  detail?: string;
+};
+
+function readCallbackStatus(): CallbackStatus | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const provider = params.get("integration");
+  const status = params.get("status");
+  if (!provider || !status) return null;
+  const detail = params.get("detail") ?? undefined;
+  return {
+    provider: provider as IntegrationProvider,
+    kind: status === "connected" ? "success" : "error",
+    detail,
+  };
+}
+
+function clearCallbackQuery() {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete("integration");
+  url.searchParams.delete("status");
+  url.searchParams.delete("detail");
+  window.history.replaceState({}, "", url.toString());
+}
+
 export function IntegrationsTab({ token }: { token: string }) {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [callback, setCallback] = useState<CallbackStatus | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -127,6 +164,11 @@ export function IntegrationsTab({ token }: { token: string }) {
   }, [token]);
 
   useEffect(() => {
+    const status = readCallbackStatus();
+    if (status) {
+      setCallback(status);
+      clearCallbackQuery();
+    }
     void refresh();
   }, [refresh]);
 
@@ -155,6 +197,42 @@ export function IntegrationsTab({ token }: { token: string }) {
           </CardDescription>
         </CardHeader>
       </Card>
+
+      {callback ? (
+        <Card
+          className={cn(
+            callback.kind === "success"
+              ? "border-emerald-500/40 bg-emerald-500/5"
+              : "border-destructive/40 bg-destructive/5",
+          )}
+        >
+          <CardContent className="flex items-center justify-between gap-3 py-3 text-sm">
+            <span>
+              {callback.kind === "success" ? (
+                <>
+                  <Check className="mr-1 inline size-3.5" />
+                  Google Calendar connected. Hit <strong>Sync now</strong> to
+                  pull today&apos;s events.
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="mr-1 inline size-3.5 text-destructive" />
+                  Could not connect Google Calendar
+                  {callback.detail ? `: ${callback.detail}` : ""}.
+                </>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCallback(null)}
+              className="opacity-70 hover:opacity-100"
+              aria-label="Dismiss"
+            >
+              <X className="size-3.5" />
+            </button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {loadError ? (
         <Card className="border-destructive/40">
@@ -226,6 +304,18 @@ function ProviderCard({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect");
     } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleOAuthConnect() {
+    setBusy("connect");
+    setError(null);
+    try {
+      const { authorization_url } = await startGoogleCalendarOAuth(token);
+      window.location.href = authorization_url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start OAuth");
       setBusy(null);
     }
   }
@@ -344,6 +434,27 @@ function ProviderCard({
               </Button>
             </div>
           </>
+        ) : provider.strategy === "oauth" ? (
+          <div className="space-y-2">
+            <p className="text-muted-foreground text-xs">
+              You&apos;ll be redirected to Google to grant read-only calendar
+              access. Disconnect anytime.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleOAuthConnect}
+              disabled={disabled || busy !== null}
+              className="gap-1.5"
+            >
+              {busy === "connect" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Icon className="size-3.5" />
+              )}
+              Connect with Google
+            </Button>
+          </div>
         ) : (
           <form onSubmit={handleConnect} className="space-y-2">
             <div className="space-y-1.5">

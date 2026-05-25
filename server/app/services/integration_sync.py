@@ -3,6 +3,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from app.integrations.google_calendar.client import CalendarAuthError, CalendarError
+from app.integrations.google_calendar.sync import (
+    GoogleCalendarSyncError,
+    sync_google_calendar,
+)
 from app.integrations.wakatime.client import WakaTimeAuthError, WakaTimeError
 from app.integrations.wakatime.sync import sync_wakatime
 from app.models.integration import Integration
@@ -38,16 +43,26 @@ async def sync_all_integrations() -> dict:
         try:
             if integration.provider == "wakatime":
                 context = await sync_wakatime(integration, user)
-                integration.status = "active"
-                integration.last_synced_at = datetime.now(timezone.utc)
-                integration.last_sync_summary = context.summary
-                integration.last_sync_error = None
-                integration.touch_updated()
-                await integration.save()
-                stats["synced"] += 1
+            elif integration.provider == "google_calendar":
+                context = await sync_google_calendar(integration, user)
             else:
                 stats["skipped"] += 1
-        except (WakaTimeAuthError, WakaTimeError) as exc:
+                continue
+
+            integration.status = "active"
+            integration.last_synced_at = datetime.now(timezone.utc)
+            integration.last_sync_summary = context.summary
+            integration.last_sync_error = None
+            integration.touch_updated()
+            await integration.save()
+            stats["synced"] += 1
+        except (
+            WakaTimeAuthError,
+            WakaTimeError,
+            CalendarAuthError,
+            CalendarError,
+            GoogleCalendarSyncError,
+        ) as exc:
             integration.status = "error"
             integration.last_sync_error = str(exc)
             integration.touch_updated()
