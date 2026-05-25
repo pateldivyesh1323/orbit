@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -9,6 +10,7 @@ from app.services.channels import InteractionChannel
 from app.services.context import AgentMode, assemble_context
 from app.services.conversation import save_conversation_turn
 from app.services.gemini import generate_orbit_reply
+from app.services.memory_extraction import extract_and_save_memories
 from app.services.prompt import system_instruction_for
 from app.services.tools import build_user_tool_bindings
 
@@ -100,6 +102,9 @@ async def process_message(
             text,
             reply,
             external_id=external_id,
+        )
+        asyncio.create_task(
+            extract_and_save_memories(user, text, reply, channel)
         )
         return OrbitInteractionResult(
             reply=reply,
