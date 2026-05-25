@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from app.models.conversation import ConversationMessage, MessageChannel
 from app.models.user import User
 
@@ -11,7 +13,7 @@ async def load_recent_messages(
 ) -> list[ConversationMessage]:
     docs = (
         await ConversationMessage.find(ConversationMessage.user.id == user.id)
-        .sort(-ConversationMessage.created_at)
+        .sort(-ConversationMessage.created_at, -ConversationMessage.id)
         .limit(limit)
         .to_list()
     )
@@ -26,18 +28,21 @@ async def save_conversation_turn(
     *,
     external_id: str | None = None,
 ) -> None:
+    now = datetime.now(timezone.utc)
     user_doc = ConversationMessage(
         user=user,
         role="user",
         content=user_message,
         channel=channel,
         external_id=external_id,
+        created_at=now,
     )
     assistant_doc = ConversationMessage(
         user=user,
         role="assistant",
         content=assistant_reply,
         channel=channel,
+        created_at=now + timedelta(milliseconds=1),
     )
     await user_doc.insert()
     await assistant_doc.insert()

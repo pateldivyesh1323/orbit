@@ -46,23 +46,23 @@ orbit/
   server/
     app/
       main.py
-      core/           # config, database, security (JWT + bcrypt), phone
+      core/           # config, database, security, phone, timezone, time_value
       models/         # Beanie Documents (MongoDB)
       schemas/        # Pydantic API request/response shapes
-      services/       # brain, gemini, prompt, user_context
+      services/       # brain, channels, conversation, gemini, prompt, user_context
       integrations/
         whatsapp/     # Twilio inbound/outbound + signature validation
       api/
         deps.py       # get_current_user (JWT)
-        routes/       # health, auth, users, context, webhook, dev
+        routes/       # health, auth, users, context, chat, conversations, webhook, dev
     requirements.txt
     .env.example
   client/
     src/
       app/            # App Router pages (/, /login, /register, /dashboard)
-      components/     # auth, dashboard, ui, site-header
+      components/     # auth, dashboard (5 tabs), ui, site-header
       contexts/       # auth-context (JWT session)
-      lib/            # api client, auth, users, context-api, phone
+      lib/            # api, auth, users, chat-api, conversation-api, context-api, phone, location-options
       types/          # TypeScript API types
     .env.local.example
 ```
@@ -75,9 +75,11 @@ orbit/
 | --- | --- | --- |
 | **Models** | `server/app/models/` | Beanie `Document` classes — what is stored in MongoDB (includes secrets like `password_hash`) |
 | **Schemas** | `server/app/schemas/` | Pydantic `BaseModel` classes — what the HTTP API accepts and returns (never exposes `password_hash`) |
-| **Profile embeds** | `server/app/models/user_profile.py` | Shared nested types (`UserContact`, `UserHealth`, etc.) reused by both models and schemas |
+| **Profile embeds** | `server/app/models/user_profile.py` | Shared nested types (`UserContact`, `UserHealth`, `WorkEntry`, etc.) reused by both models and schemas |
 
 Route handlers translate between them (e.g. `User` document → `UserDetailResponse` schema).
+
+`PATCH /api/users/me` applies updates via Pydantic `model_fields_set` (not `model_dump`) so nested models stay typed and contact email sync works.
 
 ---
 
@@ -89,15 +91,25 @@ Rich profile document with nested sections:
 
 - **contact** — email, phone, WhatsApp number (WhatsApp indexed unique/sparse for webhook lookup)
 - **identity** — display/legal/preferred name, DOB, gender, bio, avatar
-- **location** — timezone, locale, city, country, languages
-- **goals** — life mission, short/long-term goal items, focus areas, weekly priorities
-- **habits** — routines, tracked habits, habits to build/break
-- **health** — sleep, diet, allergies, conditions, medications, goals, notes
-- **work** — occupation, schedule, projects, skills, career goals
+- **location** — IANA timezone (validated), locale, city, region, country, nationality, languages
+- **goals** — life mission, **personal goals**, short/long-term goal items, focus areas, weekly priorities
+- **habits** — morning/evening routines, tracked habits, habits to build/break
+- **health** — fitness, sleep target, bedtime/wake (stored as `HH:MM:SS` strings), diet, allergies, conditions, medications, health goals, notes
+- **work** — **multiple roles** (`WorkEntry[]`: occupation, employer, mode, hours, projects, `is_primary`); shared skills, productivity goals, career goals. Legacy single-job shape auto-migrates on load.
 - **orbit_preferences** — communication style, check-in frequency, proactive nudges, topics to avoid, custom instructions
 - **emergency** — emergency contacts and notes
 - **password_hash** — bcrypt only; never returned via API
 - **is_active**, **is_verified**, timestamps
+
+Time fields (`work_hours_*`, `typical_bedtime`, `typical_wake_time`) are **strings**, not Python `time` objects — Beanie/MongoDB cannot encode `datetime.time`.
+
+### `ConversationMessage` (`conversation_messages` collection)
+
+Stored chat turns for continuity and the Memory tab:
+
+- **user** (Link to User), **role** (`user` | `assistant`), **content**, **channel** (`whatsapp` | `dashboard` | `dev`)
+- **external_id** (optional, e.g. Twilio message SID), **created_at**
+- Indexed by `(user, created_at)` and `(user, channel, created_at)`
 
 ### `LongTermContext` (`long_term_context` collection)
 
@@ -123,15 +135,16 @@ Persistent memory for Gemini prompt injection, linked to a user:
 | Method | Path | Auth | Status |
 | --- | --- | --- | --- |
 | `GET` | `/health` | No | Done |
-| `POST` | `/api/webhook/whatsapp` | No (Twilio sig optional) | Done — Gemini + Twilio outbound |
+| `POST` | `/api/webhook/whatsapp` | No (Twilio sig optional) | Done — unified brain + Twilio outbound |
 | `POST` | `/api/auth/register` | No | Done |
 | `POST` | `/api/auth/login` | No | Done (form: `username`=email) |
 | `GET` | `/api/auth/me` | Bearer | Done |
 | `GET` | `/api/users/me` | Bearer | Done |
-| `PATCH` | `/api/users/me` | Bearer | Done |
+| `PATCH` | `/api/users/me` | Bearer | Done — partial profile updates |
 | `GET/POST` | `/api/context` | Bearer | Done |
 | `GET/PATCH/DELETE` | `/api/context/{id}` | Bearer | Done (DELETE archives) |
 | `POST` | `/api/chat` | Bearer | Done — dashboard AI chat |
+| `GET` | `/api/conversations/messages` | Bearer | Done — query `channel`, `limit` |
 | `POST` | `/api/dev/chat` | No (gated by `ENABLE_DEV_ROUTES`) | Done — test AI without auth |
 | `GET/POST/PATCH/DELETE` | `/api/integrations/*` | Bearer | Not built |
 | `POST` | `/api/cron/sync` | Cron secret | Not built |
@@ -165,31 +178,47 @@ Planned (not in `.env.example` yet):
 
 ```env
 CRON_SECRET=...              # Bearer or header auth for scheduled jobs
-INTEGRATION_ENCRYPTION_KEY=...  # Fernage for connector tokens at rest
+INTEGRATION_ENCRYPTION_KEY=...  # Fernet for connector tokens at rest
 ```
+
+**Dev notes:** Use Twilio sandbox number `whatsapp:+14155238886` in dev. Install `tzdata` on Windows for IANA timezone validation. Run ngrok for webhook testing.
 
 ---
 
 ## System Architecture & Core Flows
 
-### 1. WhatsApp Webhook Loop (reactive — user messages Orbit)
+### 1. Unified AI core (`process_message`)
+
+All channels share one path in `server/app/services/brain.py`:
+
+```
+Inbound message (WhatsApp webhook | POST /api/chat | POST /api/dev/chat)
+    → process_message(message, user, channel)
+    → load_user_memories (top 12 by importance)
+    → load_recent_messages (last N turns)
+    → build_gemini_contents (profile + memories + history + message)
+    → generate_orbit_reply (Gemini)
+    → save_conversation_turn (user + assistant messages)
+    → return OrbitInteractionResult
+```
+
+**Channels:** `InteractionChannel` in `server/app/services/channels.py` — `whatsapp`, `dashboard`, `dev`.
+
+**Key files:** `brain.py`, `prompt.py`, `conversation.py`, `gemini.py`, `user_context.py`
+
+### 2. WhatsApp Webhook Loop (reactive)
 
 ```
 Twilio POST → validate_twilio_request (optional)
-           → parse_twilio_form
-           → find_user_by_whatsapp
-           → load_user_memories (top 12 by importance)
-           → build_gemini_contents (profile + memories + message)
-           → generate_orbit_reply (Gemini)
+           → parse_twilio_form → find_user_by_whatsapp
+           → process_message (channel=whatsapp)
            → send_whatsapp_message (Twilio REST, errors caught)
            → 200 OK (prevents Twilio retry storms)
 ```
 
-**Key files:** `server/app/api/routes/webhook.py`, `server/app/services/brain.py`, `server/app/integrations/whatsapp/twilio.py`
+**Gaps:** No integration data in prompt, no AI memory write-back after conversations.
 
-**Gaps:** No conversation history, no integration data in prompt, no AI memory write-back.
-
-### 2. Integration Engine (proactive — cron pulls live signals)
+### 3. Integration Engine (proactive — cron pulls live signals)
 
 **Target flow (not built):**
 
@@ -205,35 +234,41 @@ External scheduler (Railway cron / GitHub Actions / cron-job.org)
 
 **Why cron before on-demand:** Webhook must stay fast; connector API calls belong in background jobs.
 
-### 3. Context Assembly (the brain's input)
+### 4. Context Assembly (the brain's input)
 
-Everything Orbit knows about a user should funnel into one **context bundle** before Gemini:
+Everything Orbit knows about a user funnels into one **context bundle** before Gemini:
 
 | Source | Status | Priority for life optimization |
 | --- | --- | --- |
-| User profile (goals, habits, health, work, prefs) | In prompt today | High — static identity |
+| User profile (goals, personal goals, habits, health, work roles, prefs) | In prompt today | High — static identity |
+| Location block (city/region/country, timezone, **local time**, locale, languages) | In prompt today | High — time-aware responses |
 | Long-term memory (manual + AI-inferred) | In prompt today (top 12) | High — learned facts |
-| Recent conversation (last N turns) | Not built | High — continuity |
+| Recent conversation (last N turns) | In prompt today | High — continuity |
 | Integration snapshots (today's calendar, yesterday's commits, WakaTime) | Not built | High — live signals |
-| Time-aware context (local time, day of week, check-in schedule) | Partial (timezone only) | Medium — timing nudges |
+| Health & habits summary (fitness, sleep, routines) | In prompt today | Medium |
 
 **Target:** `assemble_context(user_id) -> ContextBundle` used by both webhook and cron/nudge paths.
 
-### 4. Web Dashboard (Next.js)
+### 5. Web Dashboard (Next.js)
 
-Control panel organized into **five tabs** so users always know what Orbit is doing:
+Control panel organized into **five tabs** (sidebar layout; logo + auth in sidebar):
 
 | Tab | Purpose | Status |
 | --- | --- | --- |
-| **Chat** (default) | Talk to Orbit in-browser — same brain as WhatsApp | Done (session not persisted yet) |
-| **Profile** | Identity, goals, work, health, communication prefs | Done |
-| **Memory** | Long-term memory, chat history, synced integration data | Partial (sub-tabs; chat/sync empty until backend) |
+| **Chat** (default) | Full-page ChatGPT-style UI; same brain as WhatsApp | Done (history saved server-side; chat tab reload not wired yet) |
+| **Profile** | Identity, location (dropdowns), goals, work (multi-role), health & habits, Orbit prefs | Done |
+| **Memory** | Long-term memory + WhatsApp/dashboard conversation history | Partial (history read works; edit/archive/sync UI incomplete) |
 | **Messaging & automation** | WhatsApp number, check-in frequency, proactive nudges, cron preview | Partial (cron jobs not built) |
 | **Integrations** | GitHub, WakaTime, Google Calendar connect cards | UI placeholder |
 
-JWT auth against FastAPI. Profile WhatsApp editing lives in Messaging tab (read-only hint in Profile contact).
+JWT auth against FastAPI. WhatsApp editing lives in Messaging tab (read-only hint in Profile contact).
 
-**Gaps:** Persist dashboard chat history, memory edit/archive UI, integration connect flows, live cron status.
+**Profile UI details:**
+- Location: country, timezone, locale, languages as dropdowns; city/region as text
+- Work: add/remove roles, mark one primary
+- Goals: includes personal goals (list), short/long-term, focus areas, weekly priorities
+
+**Gaps:** Reload chat UI after send, memory edit/archive UI, integration connect flows, live cron status.
 
 ```mermaid
 flowchart LR
@@ -259,13 +294,16 @@ flowchart LR
 - [x] Outbound send error handling (webhook returns 200 even if send fails)
 - [ ] Meta WhatsApp Cloud API (alternative provider)
 
-### Phase 2: The Brain — **Partially done**
+### Phase 2: The Brain — **Mostly done**
 
 - [x] Gemini SDK integration (`google-genai`)
-- [x] System prompt + user profile + long-term memory injection
+- [x] Unified `process_message()` for WhatsApp, dashboard chat, dev chat
+- [x] System prompt + rich user profile + long-term memory injection
+- [x] Location context with user's local date/time
+- [x] Work roles, health/habits, personal goals in prompt
+- [x] Conversation history — `ConversationMessage` model, save/load, inject last N turns
+- [x] `POST /api/chat`, `GET /api/conversations/messages`
 - [x] `POST /api/dev/chat` for local testing
-- [x] WhatsApp → user lookup → Gemini → reply
-- [ ] **Conversation history** — store recent turns; inject last N messages
 - [ ] **Smarter memory retrieval** — relevance + recency + importance, not just top-12
 - [ ] **AI memory write-back** — persist insights/summaries after conversations
 - [ ] **Prompt optimization** — token budget, structured sections, model selection
@@ -273,20 +311,23 @@ flowchart LR
 
 ### Phase 3: Database & State — **Done**
 
-- [x] Beanie models: `User`, `Integration`, `LongTermContext`
+- [x] Beanie models: `User`, `Integration`, `LongTermContext`, `ConversationMessage`
 - [x] Auth: register, login, JWT, protected routes
 - [x] Profile + context CRUD APIs
 - [x] Webhook user resolution by WhatsApp number
+- [x] Profile PATCH fixes (nested models, time-as-string for MongoDB)
 
 ### Phase 4: Dashboard — **Mostly done**
 
-- [x] Next.js app with auth, landing page, dashboard
+- [x] Next.js app with auth, landing page (violet theme), dashboard sidebar layout
 - [x] Five-tab layout: Chat (default), Profile, Memory, Messaging & automation, Integrations
 - [x] Dashboard AI chat (`POST /api/chat`) — same brain as WhatsApp
 - [x] Profile editing (all sections via PATCH /api/users/me)
-- [x] Memory tab with sub-sections: long-term, chats, synced data
+- [x] Location/timezone/locale dropdowns (`client/src/lib/location-options.ts`)
+- [x] Multi-role work editor, personal goals field
+- [x] Memory tab: conversation history by channel (WhatsApp / dashboard / all)
 - [x] Messaging tab: WhatsApp number, check-in prefs, cron preview (coming soon)
-- [ ] Persist dashboard + WhatsApp chat history in Memory
+- [ ] Chat tab reload history after send (stay in sync with Memory)
 - [ ] Memory edit / archive / search UI
 - [ ] Integration connect flows (UI wired to API)
 - [ ] Onboarding checklist (profile completeness, WhatsApp linked, first memory)
@@ -324,14 +365,15 @@ flowchart LR
 
 Priority is **maximize context quality** before adding more surface area.
 
-### Sprint 1 — Make the brain remember (1–2 weeks)
+### Sprint 1 — Polish the brain & dashboard loop (**partially done**)
 
-1. **Conversation history model** — `ConversationTurn` or append to `LongTermContext` as rolling summaries
-2. **Inject last 5–10 turns** into Gemini prompt
-3. **Post-reply memory extraction** — optional Gemini call to save `insight` / `conversation_summary` entries
-4. **Smarter memory selection** — query by tags, recency, and message relevance (keyword overlap or embedding later)
+1. ~~**Conversation history model**~~ — `ConversationMessage` + save/load
+2. ~~**Inject last N turns** into Gemini prompt~~
+3. **Chat tab reload** — fetch history after send so Chat and Memory stay in sync
+4. **Post-reply memory extraction** — optional Gemini call to save `insight` / `conversation_summary` entries
+5. **Smarter memory selection** — query by tags, recency, and message relevance
 
-*Why first:* WhatsApp loop works today; this alone makes Orbit feel 10x smarter without new infra.
+*Why first:* WhatsApp and dashboard chat work; finishing the UI loop and memory write-back makes Orbit feel much smarter without new infra.
 
 ### Sprint 2 — First connector + cron skeleton (1–2 weeks)
 

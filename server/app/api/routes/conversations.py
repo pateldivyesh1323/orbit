@@ -30,7 +30,7 @@ async def list_conversation_messages(
         filters.append(ConversationMessage.channel == channel)
     docs = (
         await ConversationMessage.find(*filters)
-        .sort(-ConversationMessage.created_at)
+        .sort(-ConversationMessage.created_at, -ConversationMessage.id)
         .limit(limit)
         .to_list()
     )
