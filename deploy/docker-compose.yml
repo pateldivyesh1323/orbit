@@ -1,0 +1,32 @@
+services:
+  api:
+    build: ../server
+    restart: unless-stopped
+    env_file:
+      - ../server/.env
+    expose:
+      - "8000"
+    networks:
+      - orbit
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    networks:
+      - orbit
+
+networks:
+  orbit:
+
+volumes:
+  caddy_data:
+  caddy_config:

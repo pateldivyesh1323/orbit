@@ -1,5 +1,163 @@
 # Deploying Orbit
 
+Two paths documented:
+
+- **AWS EC2 + Vercel** — for AWS credits / full VPS control (Docker + Caddy). See [Section A](#section-a--aws-ec2-recommended-for-aws-users).
+- **Railway + Vercel** — managed alternative if you're not on AWS. See [Section B](#section-b--railway-managed-alternative).
+
+Both deploy the same FastAPI server with the in-process scheduler. Pick one.
+
+---
+
+# Section A — AWS EC2 (recommended for AWS users)
+
+You'll end up with:
+- Backend on EC2: `https://orbit.yourdomain.com` (Docker + Caddy auto-TLS)
+- Frontend on Vercel: `https://orbit.vercel.app`
+
+Set aside ~45 minutes the first time.
+
+## A.0. Prereqs
+
+- AWS account, IAM access to EC2, ability to allocate an Elastic IP.
+- **A domain you can point at the EC2 instance.** Caddy needs this for Let's Encrypt. Cheapest options:
+  - Free dynamic DNS: https://www.duckdns.org → `<anything>.duckdns.org`
+  - Buy a real domain: Cloudflare / Namecheap (~$10/yr)
+  - Note: AWS-provided `*.compute.amazonaws.com` hostnames **won't work** — Amazon's policy prevents Let's Encrypt from issuing certs for them.
+- MongoDB Atlas → Network Access → either allow `0.0.0.0/0`, or whitelist your EC2 Elastic IP specifically (better — see step A.5).
+
+## A.1. Launch the EC2 instance
+
+1. EC2 → Launch Instance.
+2. **Name**: `orbit-api`
+3. **AMI**: Ubuntu Server 24.04 LTS (or 22.04)
+4. **Instance type**: `t3.small` (2 vCPU, 2 GB RAM) — comfortable headroom. `t2.micro` is free-tier eligible but tight; works if you're optimizing for credits.
+5. **Key pair**: create or reuse one; download the `.pem`.
+6. **Network settings → Edit → Security group → Create**:
+   - Allow `SSH (22)` from My IP
+   - Allow `HTTP (80)` from Anywhere
+   - Allow `HTTPS (443)` from Anywhere
+7. **Storage**: 20 GB gp3 (default 8 GB is too tight after Docker layers)
+8. Launch.
+
+## A.2. Allocate an Elastic IP
+
+This pins the instance's public IP so DNS doesn't break across reboots.
+
+1. EC2 → Elastic IPs → Allocate.
+2. After allocation → Actions → Associate → pick your instance.
+3. Copy the IP — you'll need it for DNS.
+
+## A.3. Point your domain at the IP
+
+- Duckdns: log in → enter the Elastic IP next to your subdomain → Update.
+- Real domain: at your DNS provider, create an `A` record like `orbit → <Elastic IP>`. TTL 300.
+- Wait 1–5 min, verify: `nslookup orbit.yourdomain.com` should return your IP.
+
+## A.4. SSH in and install Docker
+
+```bash
+ssh -i orbit-key.pem ubuntu@<elastic-ip>
+
+# Install Docker (current official one-liner)
+sudo apt update && sudo apt install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Run docker without sudo
+sudo usermod -aG docker $USER
+exit  # log out and back in for group change to take effect
+```
+
+Re-SSH after the `exit`. Verify with `docker version` and `docker compose version`.
+
+## A.5. (Optional but cleaner) Whitelist the EC2 IP in Atlas
+
+Instead of `0.0.0.0/0`, in MongoDB Atlas → Network Access, add your Elastic IP / 32. Tighter perimeter, and since Elastic IPs are pinned, it stays stable.
+
+## A.6. Clone the repo and configure secrets
+
+```bash
+git clone https://github.com/<you>/orbit.git
+cd orbit/server
+
+cp .env.example .env
+nano .env  # paste all production values — see "Production env vars" below
+```
+
+In `server/.env`, set every value from the env block in Section B Step 1b, with two adjustments:
+- `FRONTEND_URL` = your Vercel URL
+- `CORS_ORIGINS` = your Vercel URL
+- `GOOGLE_OAUTH_REDIRECT_URI` = `https://orbit.yourdomain.com/api/integrations/oauth/google_calendar/callback`
+- `TWILIO_WEBHOOK_URL` = `https://orbit.yourdomain.com/api/webhook/whatsapp`
+
+Then configure the Caddy domain:
+
+```bash
+cd ../deploy
+cp .env.example .env
+nano .env  # set ORBIT_DOMAIN=orbit.yourdomain.com
+```
+
+## A.7. First boot
+
+```bash
+cd ~/orbit/deploy
+docker compose up -d --build
+docker compose logs -f
+```
+
+Watch the logs. You should see:
+- `api` container start, lifespan run, `scheduler[integration_sync] running` after ~15s
+- `caddy` request a Let's Encrypt cert — takes 10–30s, success message includes the certificate path
+
+Once stable, `Ctrl-C` to stop following logs (containers keep running).
+
+Verify from your laptop:
+```bash
+curl https://orbit.yourdomain.com/health
+# → {"status":"ok","db":"reachable"}
+```
+
+## A.8. Auto-restart on instance reboot
+
+Docker's `restart: unless-stopped` in the compose file handles container crashes. To also survive an EC2 reboot, enable Docker's service:
+
+```bash
+sudo systemctl enable docker
+```
+
+Compose containers with restart policies come back up when Docker starts. Done.
+
+## A.9. Deploying updates
+
+```bash
+cd ~/orbit
+git pull
+cd deploy
+docker compose up -d --build
+```
+
+Caddy and your env vars persist; only the API rebuilds.
+
+## A.10. Re-wire external services
+
+Same as Section B steps 3a/3b — point Google Cloud's OAuth redirect URI and Twilio's webhook URL at `https://orbit.yourdomain.com`.
+
+## A.11. Then do everything in Section 4 onward
+
+(Verification table, hardening checklist, troubleshooting — all the same.)
+
+---
+
+# Section B — Railway (managed alternative)
+
 This is the **Railway (backend) + Vercel (frontend)** path. The same pattern works on Render/Fly/VPS — substitute the backend host and adjust the start command.
 
 You'll end up with two public URLs:

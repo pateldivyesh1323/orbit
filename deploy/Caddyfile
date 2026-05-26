@@ -1,0 +1,19 @@
+# Replace orbit.example.com with your actual domain (or duckdns subdomain).
+# Caddy will auto-fetch a Let's Encrypt cert on first start.
+{$ORBIT_DOMAIN} {
+    reverse_proxy api:8000
+
+    # Tighten a few defaults
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Log to stdout (Docker captures it)
+    log {
+        output stdout
+        format console
+    }
+}
