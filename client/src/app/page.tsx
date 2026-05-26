@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   ArrowRight,
@@ -17,6 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useAuth } from "@/contexts/auth-context";
 
 const features = [
   {
@@ -58,6 +61,9 @@ const steps = [
 ];
 
 export default function Home() {
+  const { serverConfig } = useAuth();
+  const registrationOpen = serverConfig?.allow_registration ?? true;
+
   return (
     <div className="flex min-h-full flex-col">
       <SiteHeader />
@@ -93,15 +99,22 @@ export default function Home() {
             </p>
 
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <Link href="/register">
-                <Button size="lg" className="gap-1.5">
-                  Create an account
-                  <ArrowRight className="size-4" />
-                </Button>
-              </Link>
+              {registrationOpen ? (
+                <Link href="/register">
+                  <Button size="lg" className="gap-1.5">
+                    Create an account
+                    <ArrowRight className="size-4" />
+                  </Button>
+                </Link>
+              ) : null}
               <Link href="/login">
-                <Button size="lg" variant="outline">
+                <Button
+                  size="lg"
+                  variant={registrationOpen ? "outline" : "default"}
+                  className="gap-1.5"
+                >
                   Sign in
+                  {!registrationOpen ? <ArrowRight className="size-4" /> : null}
                 </Button>
               </Link>
             </div>
@@ -209,9 +222,9 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-              <Link href="/register">
+              <Link href={registrationOpen ? "/register" : "/login"}>
                 <Button size="lg" className="gap-1.5">
-                  Get started
+                  {registrationOpen ? "Get started" : "Sign in"}
                   <ArrowRight className="size-4" />
                 </Button>
               </Link>
@@ -234,15 +247,19 @@ export default function Home() {
               >
                 Sign in
               </Link>
-              <span aria-hidden className="text-border">
-                ·
-              </span>
-              <Link
-                href="/register"
-                className="hover:text-foreground underline-offset-4 hover:underline"
-              >
-                Create an account
-              </Link>
+              {registrationOpen ? (
+                <>
+                  <span aria-hidden className="text-border">
+                    ·
+                  </span>
+                  <Link
+                    href="/register"
+                    className="hover:text-foreground underline-offset-4 hover:underline"
+                  >
+                    Create an account
+                  </Link>
+                </>
+              ) : null}
             </p>
           </div>
         </footer>

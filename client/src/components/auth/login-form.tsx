@@ -12,7 +12,8 @@ import { ApiError } from "@/lib/api";
 
 export function LoginForm() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, serverConfig } = useAuth();
+  const registrationOpen = serverConfig?.allow_registration ?? true;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -70,12 +71,18 @@ export function LoginForm() {
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "Signing in…" : "Sign in"}
       </Button>
-      <p className="text-muted-foreground text-center text-sm">
-        No account?{" "}
-        <Link href="/register" className="underline underline-offset-4">
-          Sign up
-        </Link>
-      </p>
+      {registrationOpen ? (
+        <p className="text-muted-foreground text-center text-sm">
+          No account?{" "}
+          <Link href="/register" className="underline underline-offset-4">
+            Sign up
+          </Link>
+        </p>
+      ) : (
+        <p className="text-muted-foreground text-center text-xs">
+          Registration is closed on this Orbit instance.
+        </p>
+      )}
     </form>
   );
 }

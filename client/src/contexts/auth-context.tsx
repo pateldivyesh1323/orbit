@@ -20,6 +20,7 @@ import {
   getStoredToken,
   setStoredToken,
 } from "@/lib/auth-storage";
+import { getServerConfig, type ServerConfig } from "@/lib/server-config-api";
 import type { AuthUser, RegisterPayload } from "@/types/auth";
 
 type AuthContextValue = {
@@ -27,6 +28,7 @@ type AuthContextValue = {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  serverConfig: ServerConfig | null;
   login: (email: string, password: string) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
@@ -39,6 +41,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [serverConfig, setServerConfig] = useState<ServerConfig | null>(null);
+
+  useEffect(() => {
+    getServerConfig()
+      .then(setServerConfig)
+      .catch(() => setServerConfig({ allow_registration: true }));
+  }, []);
 
   const loadSession = useCallback(async () => {
     const stored = getStoredToken();
@@ -104,12 +113,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       isLoading,
       isAuthenticated: Boolean(user && token),
+      serverConfig,
       login,
       register,
       logout,
       refreshUser,
     }),
-    [user, token, isLoading, login, register, logout, refreshUser],
+    [user, token, isLoading, serverConfig, login, register, logout, refreshUser],
   );
 
   return (

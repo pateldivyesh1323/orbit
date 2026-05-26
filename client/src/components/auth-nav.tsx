@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 export function AuthNav({ variant = "default" }: { variant?: "default" | "dashboard" }) {
   const router = useRouter();
-  const { user, isLoading, isAuthenticated, logout } = useAuth();
+  const { user, isLoading, isAuthenticated, logout, serverConfig } = useAuth();
 
   function handleLogout() {
     logout();
@@ -56,17 +56,23 @@ export function AuthNav({ variant = "default" }: { variant?: "default" | "dashbo
     );
   }
 
+  const registrationOpen = serverConfig?.allow_registration ?? true;
+
   return (
     <nav className="flex items-center gap-2">
       <Link
         href="/login"
-        className={cn(buttonVariants({ variant: "ghost" }))}
+        className={cn(
+          buttonVariants({ variant: registrationOpen ? "ghost" : "default" }),
+        )}
       >
         Log in
       </Link>
-      <Link href="/register" className={cn(buttonVariants())}>
-        Sign up
-      </Link>
+      {registrationOpen ? (
+        <Link href="/register" className={cn(buttonVariants())}>
+          Sign up
+        </Link>
+      ) : null}
     </nav>
   );
 }

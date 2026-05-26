@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     twilio_validate_signatures: bool = False
 
     enable_dev_routes: bool = True
+    allow_registration: bool = True
 
     integration_encryption_key: str | None = None
     cron_secret: str | None = None
