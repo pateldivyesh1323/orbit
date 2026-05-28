@@ -8,8 +8,11 @@ from google.genai import types
 
 from app.models.integration import Integration
 from app.models.user import User
+from app.services.tools import add_memory as add_memory_tool
+from app.services.tools import archive_memory as archive_memory_tool
 from app.services.tools import calendar_events as calendar_tool
 from app.services.tools import snooze as snooze_tool
+from app.services.tools import update_goals as update_goals_tool
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,18 @@ async def build_user_tool_bindings(user: User) -> list[ToolBinding]:
         ToolBinding(
             declaration=snooze_tool.declaration,
             handler=lambda **kwargs: snooze_tool.handle(user=user, **kwargs),
+        ),
+        ToolBinding(
+            declaration=update_goals_tool.declaration,
+            handler=lambda **kwargs: update_goals_tool.handle(user=user, **kwargs),
+        ),
+        ToolBinding(
+            declaration=add_memory_tool.declaration,
+            handler=lambda **kwargs: add_memory_tool.handle(user=user, **kwargs),
+        ),
+        ToolBinding(
+            declaration=archive_memory_tool.declaration,
+            handler=lambda **kwargs: archive_memory_tool.handle(user=user, **kwargs),
         ),
     ]
 
