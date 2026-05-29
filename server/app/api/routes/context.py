@@ -8,6 +8,7 @@ from app.schemas.context import (
     ContextResponse,
     ContextUpdateRequest,
 )
+from app.services.embeddings import embed_memory_doc
 
 router = APIRouter(prefix="/api/context", tags=["context"])
 
@@ -50,6 +51,7 @@ async def create_context(
     current_user: User = Depends(get_current_user),
 ) -> ContextResponse:
     doc = LongTermContext(user=current_user, **body.model_dump())
+    await embed_memory_doc(doc)
     await doc.insert()
     return context_to_response(doc)
 

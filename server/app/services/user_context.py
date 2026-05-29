@@ -1,10 +1,19 @@
 from app.core.phone import normalize_whatsapp_number
 from app.models.context import LongTermContext
 from app.models.user import User
+from app.services.embeddings import cosine_similarity, embed_text
 
 MEMORY_LIMIT = 12
 
 LIVE_SIGNAL_SOURCES = ("wakatime", "github", "google_calendar", "cron_sync")
+
+# How much importance influences the final score relative to semantic similarity.
+# Pure semantic = 0.0. Strong importance bias = ~0.1. Used as a tiebreaker.
+IMPORTANCE_BLEND = 0.02
+
+# When a memory has no embedding yet (e.g. pre-backfill), it gets this fixed
+# floor score so it's still considered, but ranks below any genuinely embedded match.
+UNEMBEDDED_FLOOR_SCORE = -1.0
 
 
 async def find_user_by_whatsapp(whatsapp_number: str) -> User | None:
@@ -14,17 +23,51 @@ async def find_user_by_whatsapp(whatsapp_number: str) -> User | None:
     return await User.find_one(User.contact.whatsapp_number == normalized)
 
 
-async def load_user_memories(user: User, limit: int = MEMORY_LIMIT) -> list[LongTermContext]:
-    return (
-        await LongTermContext.find(
-            LongTermContext.user.id == user.id,
-            LongTermContext.is_archived == False,
-            {"source": {"$nin": list(LIVE_SIGNAL_SOURCES)}},
-        )
-        .sort(-LongTermContext.importance, -LongTermContext.created_at)
-        .limit(limit)
-        .to_list()
+def _importance_sort(docs: list[LongTermContext]) -> list[LongTermContext]:
+    return sorted(
+        docs,
+        key=lambda d: (-d.importance, -d.created_at.timestamp()),
     )
+
+
+async def load_user_memories(
+    user: User,
+    *,
+    query: str | None = None,
+    limit: int = MEMORY_LIMIT,
+) -> list[LongTermContext]:
+    """Return the most relevant memories for the user.
+
+    With `query`, rank by cosine similarity over `embedding` (with a small
+    importance tiebreaker). Without `query`, fall back to importance sort.
+    """
+    docs = await LongTermContext.find(
+        LongTermContext.user.id == user.id,
+        LongTermContext.is_archived == False,
+        {"source": {"$nin": list(LIVE_SIGNAL_SOURCES)}},
+    ).to_list()
+
+    if not docs:
+        return []
+
+    if not query or not query.strip():
+        return _importance_sort(docs)[:limit]
+
+    query_emb = await embed_text(query)
+    if not query_emb:
+        return _importance_sort(docs)[:limit]
+
+    scored: list[tuple[float, LongTermContext]] = []
+    for d in docs:
+        if not d.embedding:
+            scored.append((UNEMBEDDED_FLOOR_SCORE + d.importance * 0.001, d))
+            continue
+        sim = cosine_similarity(query_emb, d.embedding)
+        score = sim + d.importance * IMPORTANCE_BLEND
+        scored.append((score, d))
+
+    scored.sort(key=lambda s: -s[0])
+    return [d for _, d in scored[:limit]]
 
 
 async def load_live_signals(user: User) -> list[LongTermContext]:

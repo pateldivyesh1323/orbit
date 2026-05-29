@@ -78,8 +78,16 @@ def _proactive_task_block(channel: InteractionChannel) -> str:
     )
 
 
-async def assemble_context(user: User) -> ContextBundle:
-    memories = await load_user_memories(user)
+async def assemble_context(
+    user: User, *, query: str | None = None
+) -> ContextBundle:
+    """Pull together everything Orbit needs to respond.
+
+    `query` is the user's current message in reactive mode — it drives semantic
+    retrieval of long-term memories. Pass None for proactive check-ins to fall
+    back to importance-based memory selection.
+    """
+    memories = await load_user_memories(user, query=query)
     live_signals = await load_live_signals(user)
     history = await load_recent_messages(user)
     return ContextBundle(

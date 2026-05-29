@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.models.context import ContextType, LongTermContext
 from app.models.user import User
 from app.services.channels import InteractionChannel
+from app.services.embeddings import embed_memory_doc
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,7 @@ async def extract_and_save_memories(
             source_ref=f"chat:{channel.value}",
             tags=item.tags,
         )
+        await embed_memory_doc(doc)
         await doc.insert()
         saved.append(doc)
         existing_titles.append(item.title)  # in-batch dedup

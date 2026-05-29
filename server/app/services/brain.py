@@ -78,7 +78,7 @@ async def process_message(
         )
 
     try:
-        bundle = await assemble_context(user)
+        bundle = await assemble_context(user, query=text)
         prompt = bundle.render_prompt(
             mode=AgentMode.REACTIVE, channel=channel, user_message=text
         )

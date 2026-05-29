@@ -14,6 +14,7 @@ from app.services.brain import (
     process_proactive_check_in,
 )
 from app.services.context import AgentMode, assemble_context
+from app.services.memory_backfill import backfill_user_embeddings
 from app.services.prompt import system_instruction_for
 from app.services.scheduling import evaluate_check_in
 from app.services.user_context import find_user_by_whatsapp
@@ -220,3 +221,17 @@ async def dev_inspect_context(
         "integrations": integrations_summary,
         "notes": notes,
     }
+
+
+@router.post("/backfill-embeddings")
+async def dev_backfill_embeddings(
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Embed any of this user's memories that don't have an embedding yet.
+
+    Run once after deploying semantic retrieval, or after a model upgrade if
+    you decide to re-embed everything.
+    """
+    if not settings.enable_dev_routes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    return await backfill_user_embeddings(current_user)

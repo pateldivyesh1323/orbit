@@ -7,6 +7,7 @@ from google.genai import types
 
 from app.models.context import LongTermContext
 from app.models.user import User
+from app.services.embeddings import embed_memory_doc
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,7 @@ async def handle(
         source_ref="tool:add_memory",
         tags=clean_tags + ["user-requested"],
     )
+    await embed_memory_doc(doc)
     await doc.insert()
     logger.info(
         "Memory saved via tool user=%s title=%r type=%s",
