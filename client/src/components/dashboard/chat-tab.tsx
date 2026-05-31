@@ -12,6 +12,7 @@ import { Bot, Check, Copy, Loader2, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ChatMarkdown } from "@/components/dashboard/chat-markdown";
+import { OrbitMark } from "@/components/orbit-mark";
 import { sendChatMessage } from "@/lib/chat-api";
 import { listConversationMessages } from "@/lib/conversation-api";
 import { cn } from "@/lib/utils";
@@ -155,38 +156,39 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
   const isEmpty = !messages.length && !sending;
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col bg-background">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+    <div className="dark bg-background text-foreground relative flex h-full min-h-0 flex-1 flex-col">
+      {/* ambient top glow */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(80%_100%_at_50%_0%,rgba(90,162,250,0.10),transparent)]" />
+
+      <div ref={scrollRef} className="relative flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-3xl flex-col px-4 py-6 sm:px-6">
           {loadingHistory ? (
-            <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-muted-foreground">
+            <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-white/50">
               <Loader2 className="size-6 animate-spin text-primary" />
               <p className="text-sm">Loading conversation…</p>
             </div>
           ) : isEmpty ? (
             <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
-              <span className="inline-flex size-14 items-center justify-center rounded-2xl bg-linear-to-br from-primary to-primary/70 text-primary-foreground shadow-md shadow-primary/20">
-                <Bot className="size-7" strokeWidth={2} />
-              </span>
-              <div className="space-y-1">
-                <h2 className="text-2xl font-semibold tracking-tight">
+              <OrbitMark className="size-16 drop-shadow-[0_8px_24px_rgba(90,162,250,0.25)]" />
+              <div className="space-y-1.5">
+                <h2 className="text-2xl font-semibold tracking-tight text-white">
                   Hi, {displayName}
                 </h2>
-                <p className="text-muted-foreground mx-auto max-w-md text-sm">
+                <p className="mx-auto max-w-md text-sm text-white/55">
                   Ask about your goals, habits, or what to focus on today. Same
                   AI as WhatsApp — powered by your profile and memory.
                 </p>
               </div>
-              <div className="grid w-full max-w-xl grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="grid w-full max-w-xl grid-cols-1 gap-2.5 sm:grid-cols-2">
                 {SUGGESTIONS.map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
                     onClick={() => void submit(suggestion)}
-                    className="group flex items-start gap-2 rounded-xl border border-border/70 bg-muted/30 px-3 py-2.5 text-left text-sm transition-colors hover:border-primary/40 hover:bg-muted/60"
+                    className="group flex items-start gap-2 rounded-xl border border-white/10 bg-white/3 px-3.5 py-3 text-left text-sm text-white/80 transition-colors hover:border-primary/40 hover:bg-white/6"
                   >
                     <Sparkles className="mt-0.5 size-4 shrink-0 text-primary/70 transition-colors group-hover:text-primary" />
-                    <span className="text-foreground">{suggestion}</span>
+                    <span>{suggestion}</span>
                   </button>
                 ))}
               </div>
@@ -196,23 +198,23 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
               {messages.map((message) =>
                 message.role === "user" ? (
                   <div key={message.id} className="flex justify-end">
-                    <div className="max-w-[85%] rounded-3xl bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground">
+                    <div className="max-w-[85%] rounded-3xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground shadow-sm shadow-primary/20">
                       <p className="whitespace-pre-wrap">{message.content}</p>
                     </div>
                   </div>
                 ) : (
                   <div key={message.id} className="group flex gap-3">
-                    <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary ring-1 ring-primary/20">
                       <Bot className="size-4" />
                     </span>
-                    <div className="min-w-0 flex-1 pt-0.5">
+                    <div className="min-w-0 flex-1 pt-0.5 text-white/85">
                       <ChatMarkdown content={message.content} />
                       <div className="mt-1 flex h-6 items-center opacity-0 transition-opacity group-hover:opacity-100">
                         <Button
                           type="button"
                           variant="ghost"
                           size="xs"
-                          className="gap-1 text-[11px] text-muted-foreground"
+                          className="gap-1 text-[11px] text-white/40 hover:text-white"
                           onClick={() => handleCopy(message.id, message.content)}
                         >
                           {copiedId === message.id ? (
@@ -234,13 +236,13 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
               )}
               {sending ? (
                 <div className="flex gap-3">
-                  <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary ring-1 ring-primary/20">
                     <Bot className="size-4" />
                   </span>
-                  <div className="flex items-center gap-1.5 pt-2 text-muted-foreground text-sm">
-                    <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:-0.3s]" />
-                    <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:-0.15s]" />
-                    <span className="size-1.5 animate-pulse rounded-full bg-current" />
+                  <div className="flex items-center gap-1.5 pt-2.5 text-sm text-white/50">
+                    <span className="size-1.5 animate-pulse rounded-full bg-primary [animation-delay:-0.3s]" />
+                    <span className="size-1.5 animate-pulse rounded-full bg-primary [animation-delay:-0.15s]" />
+                    <span className="size-1.5 animate-pulse rounded-full bg-primary" />
                   </div>
                 </div>
               ) : null}
@@ -249,13 +251,13 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-border/60 bg-background/90 px-4 py-4 backdrop-blur supports-backdrop-filter:bg-background/75 sm:px-6">
+      <div className="relative shrink-0 border-t border-white/10 bg-background/80 px-4 py-4 backdrop-blur sm:px-6">
         <form
           onSubmit={handleSubmit}
           className="mx-auto w-full max-w-3xl space-y-2"
         >
           {error ? (
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-destructive text-xs">
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               <span>{error}</span>
               <button
                 type="button"
@@ -268,8 +270,8 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
           ) : null}
           <div
             className={cn(
-              "flex items-end gap-2 rounded-2xl border border-border/80 bg-background p-2 shadow-sm",
-              "ring-1 ring-transparent focus-within:border-primary/40 focus-within:ring-primary/20",
+              "flex items-end gap-2 rounded-2xl border border-white/15 bg-white/4 p-2",
+              "ring-1 ring-transparent transition-colors focus-within:border-primary/50 focus-within:ring-primary/25",
             )}
           >
             <Textarea
@@ -279,7 +281,7 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
               placeholder="Message Orbit…"
               rows={1}
               disabled={sending}
-              className="max-h-40 min-h-[40px] flex-1 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
+              className="max-h-40 min-h-[40px] flex-1 resize-none border-0 bg-transparent px-2 py-2 text-white shadow-none placeholder:text-white/30 focus-visible:ring-0"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -300,7 +302,7 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
               )}
             </Button>
           </div>
-          <p className="text-muted-foreground text-center text-[11px]">
+          <p className="text-center text-[11px] text-white/40">
             Enter to send · Shift+Enter for new line
           </p>
         </form>
