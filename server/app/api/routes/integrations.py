@@ -9,6 +9,12 @@ from fastapi.responses import RedirectResponse
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.integration_security import encrypt_secret
+from app.integrations.github.client import (
+    GitHubAuthError,
+    GitHubError,
+    verify_pat,
+)
+from app.integrations.github.sync import sync_github
 from app.integrations.google_calendar.client import (
     CalendarAuthError,
     CalendarError,
@@ -95,6 +101,8 @@ async def _run_sync(doc: Integration, user: User) -> LongTermContext:
         return await sync_wakatime(doc, user)
     if doc.provider == "google_calendar":
         return await sync_google_calendar(doc, user)
+    if doc.provider == "github":
+        return await sync_github(doc, user)
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=f"Sync not implemented for provider '{doc.provider}'",
@@ -153,7 +161,7 @@ async def connect_integration(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Use POST /api/integrations/oauth/google_calendar/start for Google Calendar",
         )
-    if body.provider != "wakatime":
+    if body.provider not in ("wakatime", "github"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Provider '{body.provider}' is not supported yet",
@@ -163,23 +171,45 @@ async def connect_integration(
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="api_key is required for WakaTime",
+            detail=f"api_key is required for {body.provider}",
         )
 
-    try:
-        await verify_api_key(api_key)
-    except WakaTimeAuthError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
-    except WakaTimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
+    encrypted_credentials: dict[str, str] = {"api_key": encrypt_secret(api_key)}
 
-    encrypted_credentials = {"api_key": encrypt_secret(api_key)}
+    if body.provider == "wakatime":
+        try:
+            await verify_api_key(api_key)
+        except WakaTimeAuthError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        except WakaTimeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=str(exc),
+            ) from exc
+    else:  # github
+        try:
+            profile = await verify_pat(api_key)
+        except GitHubAuthError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        except GitHubError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=str(exc),
+            ) from exc
+        username = profile.get("login")
+        if not username:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="GitHub returned no username",
+            )
+        # Username isn't a secret — store as plaintext so sync.py can use it.
+        encrypted_credentials["username"] = username
 
     existing = await Integration.find_one(
         Integration.user.id == current_user.id,
@@ -223,7 +253,7 @@ async def trigger_integration_sync(
 
     try:
         context = await _run_sync(doc, current_user)
-    except (WakaTimeAuthError, CalendarAuthError) as exc:
+    except (WakaTimeAuthError, CalendarAuthError, GitHubAuthError) as exc:
         doc.status = "error"
         doc.last_sync_error = str(exc)
         doc.touch_updated()
@@ -232,7 +262,7 @@ async def trigger_integration_sync(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
-    except (WakaTimeError, CalendarError, GoogleCalendarSyncError) as exc:
+    except (WakaTimeError, CalendarError, GoogleCalendarSyncError, GitHubError) as exc:
         doc.status = "error"
         doc.last_sync_error = str(exc)
         doc.touch_updated()

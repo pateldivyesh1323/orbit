@@ -11,6 +11,8 @@ from app.models.user import User
 from app.services.tools import add_memory as add_memory_tool
 from app.services.tools import archive_memory as archive_memory_tool
 from app.services.tools import calendar_events as calendar_tool
+from app.services.tools import github_activity as github_activity_tool
+from app.services.tools import github_pull_requests as github_prs_tool
 from app.services.tools import snooze as snooze_tool
 from app.services.tools import update_goals as update_goals_tool
 
@@ -53,19 +55,36 @@ async def build_user_tool_bindings(user: User) -> list[ToolBinding]:
     ]
 
     try:
-        calendar_int = await Integration.find_one(
-            Integration.user.id == user.id,
-            Integration.provider == "google_calendar",
-        )
+        integrations = await Integration.find(
+            Integration.user.id == user.id
+        ).to_list()
     except Exception:
-        logger.exception("Failed to check google_calendar integration for tool binding")
-        calendar_int = None
+        logger.exception("Failed to load integrations for tool binding")
+        integrations = []
 
-    if calendar_int is not None and calendar_int.status != "inactive":
+    active_providers: set[str] = {
+        i.provider for i in integrations if i.status != "inactive"
+    }
+
+    if "google_calendar" in active_providers:
         bindings.append(
             ToolBinding(
                 declaration=calendar_tool.declaration,
                 handler=lambda **kwargs: calendar_tool.handle(user=user, **kwargs),
+            )
+        )
+
+    if "github" in active_providers:
+        bindings.append(
+            ToolBinding(
+                declaration=github_activity_tool.declaration,
+                handler=lambda **kwargs: github_activity_tool.handle(user=user, **kwargs),
+            )
+        )
+        bindings.append(
+            ToolBinding(
+                declaration=github_prs_tool.declaration,
+                handler=lambda **kwargs: github_prs_tool.handle(user=user, **kwargs),
             )
         )
 

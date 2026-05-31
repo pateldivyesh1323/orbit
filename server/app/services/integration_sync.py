@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from app.integrations.github.client import GitHubAuthError, GitHubError
+from app.integrations.github.sync import sync_github
 from app.integrations.google_calendar.client import CalendarAuthError, CalendarError
 from app.integrations.google_calendar.sync import (
     GoogleCalendarSyncError,
@@ -45,6 +47,8 @@ async def sync_all_integrations() -> dict:
                 context = await sync_wakatime(integration, user)
             elif integration.provider == "google_calendar":
                 context = await sync_google_calendar(integration, user)
+            elif integration.provider == "github":
+                context = await sync_github(integration, user)
             else:
                 stats["skipped"] += 1
                 continue
@@ -62,6 +66,8 @@ async def sync_all_integrations() -> dict:
             CalendarAuthError,
             CalendarError,
             GoogleCalendarSyncError,
+            GitHubAuthError,
+            GitHubError,
         ) as exc:
             integration.status = "error"
             integration.last_sync_error = str(exc)

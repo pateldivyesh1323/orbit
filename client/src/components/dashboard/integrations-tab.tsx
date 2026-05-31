@@ -50,6 +50,9 @@ type ProviderMeta = {
   strategy: ConnectStrategy;
   helpUrl?: string;
   helpLabel?: string;
+  inputLabel?: string;
+  inputPlaceholder?: string;
+  setupSteps?: string[];
   icon: typeof Plug;
 };
 
@@ -61,6 +64,12 @@ const PROVIDERS: ProviderMeta[] = [
       "Today's events, tomorrow's schedule, and free blocks so Orbit can suggest when to focus.",
     available: true,
     strategy: "oauth",
+    setupSteps: [
+      "One-time admin setup: configure a Google Cloud OAuth client (see docs/google_calendar_setup.md in the repo) and set GOOGLE_OAUTH_* env vars on the backend.",
+      "Click Connect with Google below.",
+      "Sign in and tick the box granting calendar.readonly access on the consent screen.",
+      "You'll bounce back here with a green banner; click Sync now to pull today's events.",
+    ],
     icon: Calendar,
   },
   {
@@ -72,17 +81,50 @@ const PROVIDERS: ProviderMeta[] = [
     strategy: "api_key",
     helpUrl: "https://wakatime.com/api-key",
     helpLabel: "Get your API key",
+    inputLabel: "API key",
+    inputPlaceholder: "waka_…",
+    setupSteps: [
+      "Open wakatime.com/api-key (link below) — sign in if needed.",
+      "Copy the 'Secret API Key' value.",
+      "Paste it into the field below and click Connect.",
+    ],
     icon: Plug,
   },
   {
     id: "github",
     name: "GitHub",
-    description: "Commits, PRs, and coding streaks — coming soon.",
-    available: false,
+    description:
+      "Commits, open PRs, contribution streak — Orbit can nudge you about review queues and momentum.",
+    available: true,
     strategy: "api_key",
+    helpUrl: "https://github.com/settings/tokens/new?description=Orbit&scopes=read:user",
+    helpLabel: "Generate a personal access token (read:user)",
+    inputLabel: "Personal access token",
+    inputPlaceholder: "ghp_… or github_pat_…",
+    setupSteps: [
+      "Click the help link below — it opens GitHub's new-token page pre-filled with the right scope.",
+      "Keep 'read:user' selected, set an expiration (90 days is fine), and click Generate token.",
+      "Copy the token immediately (GitHub only shows it once).",
+      "Paste it here and click Connect.",
+    ],
     icon: Code2,
   },
 ];
+
+function SetupSteps({ steps }: { steps: string[] }) {
+  return (
+    <div className="space-y-1.5 rounded-md border border-border/60 bg-muted/30 p-2.5">
+      <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wider">
+        Setup
+      </p>
+      <ol className="text-foreground list-decimal space-y-1 pl-4 text-xs leading-relaxed">
+        {steps.map((step, i) => (
+          <li key={i}>{step}</li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 function statusBadge(status: IntegrationStatus | "disconnected") {
   switch (status) {
@@ -435,11 +477,10 @@ function ProviderCard({
             </div>
           </>
         ) : provider.strategy === "oauth" ? (
-          <div className="space-y-2">
-            <p className="text-muted-foreground text-xs">
-              You&apos;ll be redirected to Google to grant read-only calendar
-              access. Disconnect anytime.
-            </p>
+          <div className="space-y-3">
+            {provider.setupSteps ? (
+              <SetupSteps steps={provider.setupSteps} />
+            ) : null}
             <Button
               type="button"
               size="sm"
@@ -456,20 +497,23 @@ function ProviderCard({
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleConnect} className="space-y-2">
+          <form onSubmit={handleConnect} className="space-y-3">
+            {provider.setupSteps ? (
+              <SetupSteps steps={provider.setupSteps} />
+            ) : null}
             <div className="space-y-1.5">
               <Label
                 htmlFor={`${provider.id}-key`}
                 className="text-xs font-medium"
               >
-                API key
+                {provider.inputLabel ?? "API key"}
               </Label>
               <Input
                 id={`${provider.id}-key`}
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="waka_…"
+                placeholder={provider.inputPlaceholder ?? ""}
                 autoComplete="off"
                 disabled={disabled || busy !== null}
               />
