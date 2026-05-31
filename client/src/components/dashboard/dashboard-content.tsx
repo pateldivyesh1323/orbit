@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,21 @@ import { cn } from "@/lib/utils";
 import type { LongTermContextItem } from "@/types/context";
 import type { UserProfile } from "@/types/user";
 
+const VALID_SECTIONS: readonly DashboardSection[] = [
+  "chat",
+  "profile",
+  "memory",
+  "messaging",
+  "integrations",
+] as const;
+
+function parseSection(value: string | null): DashboardSection {
+  if (value && (VALID_SECTIONS as readonly string[]).includes(value)) {
+    return value as DashboardSection;
+  }
+  return "chat";
+}
+
 const SECTION_TITLES: Record<
   Exclude<DashboardSection, "chat">,
   { title: string; description: string }
@@ -53,7 +69,27 @@ const SECTION_TITLES: Record<
 export function DashboardContent() {
   const { user, token } = useAuth();
   const { isLoading: authLoading } = useRequireAuth();
-  const [activeSection, setActiveSection] = useState<DashboardSection>("chat");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const activeSection = parseSection(searchParams.get("tab"));
+
+  const setActiveSection = useCallback(
+    (section: DashboardSection) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (section === "chat") {
+        // Default tab — keep URL clean
+        params.delete("tab");
+      } else {
+        params.set("tab", section);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [memory, setMemory] = useState<LongTermContextItem[]>([]);
   const [loading, setLoading] = useState(true);

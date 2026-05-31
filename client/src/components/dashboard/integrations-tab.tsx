@@ -181,6 +181,7 @@ function clearCallbackQuery() {
   url.searchParams.delete("integration");
   url.searchParams.delete("status");
   url.searchParams.delete("detail");
+  // Preserve `tab=integrations` so we don't pop back to the default tab.
   window.history.replaceState({}, "", url.toString());
 }
 

@@ -88,7 +88,8 @@ async def get_owned_integration(integration_id: str, user: User) -> Integration:
 
 def _dashboard_redirect(provider: str, status_str: str, detail: str | None = None) -> RedirectResponse:
     base = settings.frontend_url.rstrip("/")
-    qs = f"integration={provider}&status={status_str}"
+    # Land the user back on the integrations tab so they see the result of their connect attempt.
+    qs = f"tab=integrations&integration={provider}&status={status_str}"
     if detail:
         from urllib.parse import quote
 
