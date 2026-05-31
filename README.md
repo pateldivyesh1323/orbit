@@ -1,5 +1,9 @@
 # Orbit
 
+<p align="center">
+  <img src="assets/image.png" alt="ORBIT — personal AI copilot powered by WhatsApp, with Google Calendar, WakaTime, and GitHub integrations" width="900" />
+</p>
+
 > A self-hostable personal AI copilot that proactively reaches out over WhatsApp, grounded in your real schedule, coding activity, and a long-term memory that grows with every conversation.
 
 Orbit is a one-user-per-instance AI agent. You connect WhatsApp, Google Calendar, and WakaTime; Orbit builds up a profile + a semantic long-term memory; then it both responds when you message and **initiates** check-ins on its own schedule — every message grounded in fresh context from your connected tools.
