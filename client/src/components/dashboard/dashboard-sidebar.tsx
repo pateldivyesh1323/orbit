@@ -6,7 +6,6 @@ import {
   Bot,
   LogOut,
   MessageCircle,
-  Orbit,
   Plug,
   RefreshCw,
   Sparkles,
@@ -105,14 +104,10 @@ export function DashboardSidebar({
   return (
     <aside className="flex w-full shrink-0 flex-col border-border/60 bg-background lg:h-full lg:min-h-0 lg:w-64 lg:shrink-0 lg:border-r">
       <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3 lg:py-4">
-        <Link
-          href="/"
-          className="group flex items-center gap-2 text-base font-semibold tracking-tight"
-        >
-          <span className="relative inline-flex size-8 items-center justify-center rounded-lg bg-linear-to-br from-primary to-primary/70 text-primary-foreground shadow-sm shadow-primary/20">
-            <Orbit className="size-4" strokeWidth={2.25} />
+        <Link href="/" className="tracking-tight">
+          <span className="font-display text-lg uppercase tracking-wide">
+            Orbit
           </span>
-          <span>Orbit</span>
         </Link>
         <div className="flex items-center gap-1">
           <Button
