@@ -2,259 +2,392 @@
 
 import Link from "next/link";
 import {
-  ArrowRight,
+  ArrowUpRight,
+  Bot,
   Brain,
+  Calendar,
   CheckCircle2,
+  Clock,
+  Code2,
   MessageCircle,
-  Plug,
+  Send,
   Sparkles,
 } from "lucide-react";
 
 import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
 
-const features = [
-  {
-    icon: Brain,
-    title: "Profile",
-    description: "Goals, health, work, and preferences in one place.",
-    points: ["Edit anytime", "Used as Orbit's working memory"],
-  },
-  {
-    icon: Sparkles,
-    title: "Memory",
-    description: "Long-term context Orbit can recall in every conversation.",
-    points: ["Tagged & ranked by importance", "Searchable history"],
-  },
-  {
-    icon: Plug,
-    title: "Integrations",
-    description: "GitHub, WakaTime, and Google Calendar feed Orbit live signals.",
-    points: ["Coding activity", "Schedule awareness"],
-  },
+const WHITE_PILL =
+  "inline-flex items-center justify-center gap-1.5 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-[#040404] transition-transform hover:-translate-y-0.5 hover:bg-white/90";
+const OUTLINE_PILL =
+  "inline-flex items-center justify-center gap-1.5 rounded-full border border-white/20 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/10";
+
+const PROMPTS = [
+  "What should I focus on today?",
+  "How's my coding streak this week?",
+  "Plan my afternoon around my calendar",
+  "Don't disturb me for the next 2 hours",
 ];
 
-const steps = [
+const INTEGRATIONS = [
+  { icon: Calendar, label: "Google Calendar" },
+  { icon: Code2, label: "GitHub" },
+  { icon: Clock, label: "WakaTime" },
+  { icon: MessageCircle, label: "WhatsApp" },
+];
+
+const STEPS = [
   {
     n: "01",
     title: "Link your number",
-    body: "Connect WhatsApp during signup so Orbit knows where to reach you.",
+    body: "Connect WhatsApp at signup so Orbit knows where to reach you.",
   },
   {
     n: "02",
-    title: "Chat naturally",
-    body: "Ask Orbit anything. It remembers your goals, schedule, and preferences.",
+    title: "Connect your tools",
+    body: "GitHub, WakaTime, and Calendar feed Orbit live signals about your day.",
   },
   {
     n: "03",
-    title: "Stay on track",
-    body: "Get nudges, reminders, and answers grounded in your real context.",
+    title: "Let it orbit you",
+    body: "Chat anytime, and get proactive nudges grounded in your real context.",
   },
 ];
+
+function ChatMockup() {
+  return (
+    <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f17]/90 shadow-2xl shadow-primary/10 backdrop-blur">
+      {/* title bar */}
+      <div className="flex items-center gap-2 border-b border-white/8 px-4 py-3">
+        <span className="size-2.5 rounded-full bg-white/15" />
+        <span className="size-2.5 rounded-full bg-white/15" />
+        <span className="size-2.5 rounded-full bg-white/15" />
+        <div className="ml-2 flex items-center gap-2">
+          <span className="inline-flex size-5 items-center justify-center rounded-md bg-primary/20 text-primary">
+            <Bot className="size-3" />
+          </span>
+          <span className="text-xs font-medium text-white/70">Orbit</span>
+          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
+            <span className="size-1.5 rounded-full bg-emerald-400" />
+            online
+          </span>
+        </div>
+      </div>
+
+      {/* messages */}
+      <div className="space-y-4 px-4 py-5">
+        <div className="flex justify-end">
+          <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
+            What should I focus on today?
+          </div>
+        </div>
+
+        <div className="flex gap-2.5">
+          <span className="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-white/8 text-primary">
+            <Bot className="size-3.5" />
+          </span>
+          <div className="space-y-2 text-sm leading-relaxed text-white/80">
+            <p>
+              Morning, Divyesh. Your calendar&apos;s clear until the{" "}
+              <span className="font-medium text-white">2 PM standup</span> — that&apos;s
+              your deep-work block.
+            </p>
+            <p>
+              WakaTime shows{" "}
+              <span className="font-medium text-white">3h 4m</span> yesterday;
+              one more focused session hits your weekly target. Want me to mute
+              nudges till 2?
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* input */}
+      <div className="border-t border-white/8 p-3">
+        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+          <span className="flex-1 text-xs text-white/30">Message Orbit…</span>
+          <span className="inline-flex size-6 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Send className="size-3" />
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const { serverConfig } = useAuth();
   const registrationOpen = serverConfig?.allow_registration ?? true;
+  const primaryHref = registrationOpen ? "/register" : "/login";
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="dark flex min-h-full flex-col bg-background text-foreground">
       <SiteHeader />
 
       <main className="flex-1">
-        <section className="relative overflow-hidden border-b border-border/60">
-          <div
-            aria-hidden
-            className="absolute inset-x-0 -top-32 h-112 bg-linear-to-b from-primary/15 via-primary/5 to-transparent blur-3xl"
-          />
-          <div
-            aria-hidden
-            className="absolute -right-24 top-20 hidden size-112 rounded-full bg-primary/10 blur-3xl md:block"
-          />
+        {/* ===== Hero ===== */}
+        <section className="px-4 pt-6 sm:px-6">
+          <div className="bg-voxa-radial relative mx-auto w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/10">
+            {/* depth layers */}
+            <div className="bg-grid mask-fade pointer-events-none absolute inset-0" />
+            <div className="pointer-events-none absolute -left-24 top-10 size-72 rounded-full bg-primary/20 blur-3xl" />
+            <div className="pointer-events-none absolute -right-16 bottom-0 size-80 rounded-full bg-[#0147a3]/30 blur-3xl" />
 
-          <div className="relative mx-auto flex w-full max-w-6xl flex-col items-start gap-6 px-4 py-20 sm:px-6 sm:py-24 lg:py-28">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
-              <span className="size-1.5 rounded-full bg-primary" />
-              Personal AI copilot · powered by WhatsApp
-            </div>
+            <div className="relative grid items-center gap-10 px-6 py-14 sm:px-10 sm:py-16 lg:grid-cols-[1.1fr_0.9fr] lg:py-20">
+              {/* left */}
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-white/70 backdrop-blur">
+                  <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+                  Personal AI copilot · powered by WhatsApp
+                </div>
 
-            <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-              Your life,{" "}
-              <span className="bg-linear-to-br from-primary via-primary to-primary/60 bg-clip-text text-transparent">
-                gently orchestrated.
-              </span>
-            </h1>
+                <h1 className="font-display mt-6 text-6xl uppercase leading-[0.82] tracking-tight sm:text-7xl lg:text-8xl">
+                  <span className="text-gradient-blue">Orbit</span>
+                </h1>
 
-            <p className="max-w-2xl text-lg text-muted-foreground">
-              Orbit monitors your habits, productivity, and health—then guides
-              you over WhatsApp. Use this dashboard to manage your profile,
-              memory, and integrations.
-            </p>
+                <p className="mt-6 max-w-md text-lg text-white/70">
+                  Your smart help for any request. Orbit knows your goals,
+                  schedule, and habits — then guides you over WhatsApp before you
+                  even ask.
+                </p>
 
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              {registrationOpen ? (
-                <Link href="/register">
-                  <Button size="lg" className="gap-1.5">
-                    Create an account
-                    <ArrowRight className="size-4" />
-                  </Button>
-                </Link>
-              ) : null}
-              <Link href="/login">
-                <Button
-                  size="lg"
-                  variant={registrationOpen ? "outline" : "default"}
-                  className="gap-1.5"
-                >
-                  Sign in
-                  {!registrationOpen ? <ArrowRight className="size-4" /> : null}
-                </Button>
-              </Link>
-            </div>
+                <div className="mt-8 flex flex-wrap items-center gap-3">
+                  <Link href={primaryHref} className={WHITE_PILL}>
+                    {registrationOpen ? "Try Orbit for free" : "Sign in"}
+                    <ArrowUpRight className="size-4" />
+                  </Link>
+                  {registrationOpen ? (
+                    <Link href="/login" className={OUTLINE_PILL}>
+                      Sign in
+                    </Link>
+                  ) : null}
+                </div>
 
-            <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle2 className="size-3.5 text-primary" />
-                No app to install
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle2 className="size-3.5 text-primary" />
-                Works in WhatsApp you already use
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle2 className="size-3.5 text-primary" />
-                Memory you control
-              </span>
+                <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-white/50">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5 text-primary" />
+                    No app to install
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5 text-primary" />
+                    Self-hosted &amp; private
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5 text-primary" />
+                    Memory you control
+                  </span>
+                </div>
+              </div>
+
+              {/* right */}
+              <div className="flex justify-center lg:justify-end">
+                <ChatMockup />
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
-          <div className="mb-10 flex flex-col items-start gap-2">
-            <span className="text-xs font-medium uppercase tracking-wider text-primary">
-              What's inside
-            </span>
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              Three surfaces, one copilot
-            </h2>
-            <p className="max-w-2xl text-muted-foreground">
-              Manage everything Orbit knows about you from a single dashboard.
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((f) => (
-              <Card
-                key={f.title}
-                className="group/feature relative transition-all hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5 hover:ring-primary/20"
+        {/* ===== Grounded-in strip ===== */}
+        <section className="mx-auto w-full max-w-6xl px-6 py-10">
+          <p className="text-center text-xs uppercase tracking-[0.25em] text-white/40">
+            Grounded in the tools you already use
+          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+            {INTEGRATIONS.map((it) => (
+              <div
+                key={it.label}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white/70"
               >
-                <CardHeader>
-                  <div className="mb-3 inline-flex size-10 items-center justify-center rounded-xl bg-linear-to-br from-primary/15 to-primary/5 text-primary ring-1 ring-primary/15">
-                    <f.icon className="size-5" />
-                  </div>
-                  <CardTitle className="text-lg">{f.title}</CardTitle>
-                  <CardDescription>{f.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    {f.points.map((p) => (
-                      <li key={p} className="flex items-start gap-2">
-                        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary/70" />
-                        <span>{p}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
+                <it.icon className="size-4 text-primary" />
+                {it.label}
+              </div>
             ))}
           </div>
         </section>
 
-        <section className="border-t border-border/60 bg-muted/30">
-          <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
-            <div className="mb-10 flex flex-col items-start gap-2">
-              <span className="text-xs font-medium uppercase tracking-wider text-primary">
-                How it works
-              </span>
-              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                Set it up in under a minute
-              </h2>
-            </div>
+        {/* ===== Bento capabilities ===== */}
+        <section className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 lg:py-16">
+          <div className="mb-10 max-w-2xl">
+            <span className="text-xs font-medium uppercase tracking-[0.25em] text-primary">
+              What&apos;s inside
+            </span>
+            <h2 className="font-display mt-3 text-3xl uppercase leading-[0.9] tracking-wide text-white sm:text-4xl">
+              One copilot,
+              <br />
+              every surface of your life
+            </h2>
+          </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              {steps.map((s) => (
-                <div
-                  key={s.n}
-                  className="relative rounded-xl border border-border/60 bg-background p-6 ring-1 ring-foreground/5"
-                >
-                  <span className="font-mono text-xs font-medium text-primary">
-                    {s.n}
-                  </span>
-                  <h3 className="mt-2 font-semibold tracking-tight">
-                    {s.title}
-                  </h3>
-                  <p className="mt-1.5 text-sm text-muted-foreground">
-                    {s.body}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-12 flex flex-col items-start gap-4 rounded-2xl border border-primary/20 bg-linear-to-br from-primary/10 via-background to-background p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
-              <div className="flex items-start gap-4">
-                <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                  <MessageCircle className="size-5" />
+          <div className="grid gap-4 lg:grid-cols-3">
+            {/* Advanced chat — wide */}
+            <div className="card-voxa flex flex-col rounded-3xl p-6 lg:col-span-2">
+              <div className="mb-1 inline-flex w-fit items-center gap-2 text-primary">
+                <Sparkles className="size-4" />
+                <span className="text-xs font-medium uppercase tracking-wider">
+                  Advanced chat
                 </span>
-                <div>
-                  <h3 className="font-semibold tracking-tight">
-                    Ready when you are
-                  </h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Create an account, link WhatsApp, and start chatting with
-                    Orbit.
-                  </p>
-                </div>
               </div>
-              <Link href={registrationOpen ? "/register" : "/login"}>
-                <Button size="lg" className="gap-1.5">
-                  {registrationOpen ? "Get started" : "Sign in"}
-                  <ArrowRight className="size-4" />
-                </Button>
+              <h3 className="text-xl font-semibold text-white">
+                Ask anything. It already has the context.
+              </h3>
+              <p className="mt-2 max-w-lg text-sm text-white/60">
+                Same brain on WhatsApp and the dashboard — powered by your
+                profile, memory, and live signals.
+              </p>
+              <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
+                {PROMPTS.map((p) => (
+                  <div
+                    key={p}
+                    className="flex items-start gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-sm text-white/75"
+                  >
+                    <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary/70" />
+                    {p}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Memory — tall */}
+            <div className="card-voxa flex flex-col rounded-3xl p-6">
+              <div className="mb-4 inline-flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/25">
+                <Brain className="size-5" />
+              </div>
+              <h3 className="text-xl font-semibold text-white">
+                Memory that compounds
+              </h3>
+              <p className="mt-2 text-sm text-white/60">
+                Durable facts are auto-extracted from every chat and recalled by
+                meaning, not keywords.
+              </p>
+              <div className="mt-auto space-y-2 pt-5">
+                {["Stopping Valorant to focus on research", "Hits the gym 5×/week", "Researching VLMs"].map(
+                  (m) => (
+                    <div
+                      key={m}
+                      className="truncate rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-white/60"
+                    >
+                      {m}
+                    </div>
+                  ),
+                )}
+              </div>
+            </div>
+
+            {/* Proactive nudge — wide with WhatsApp bubble */}
+            <div className="card-voxa flex flex-col justify-between gap-5 rounded-3xl p-6 lg:col-span-2 lg:flex-row lg:items-center">
+              <div className="max-w-sm">
+                <div className="mb-1 inline-flex items-center gap-2 text-primary">
+                  <MessageCircle className="size-4" />
+                  <span className="text-xs font-medium uppercase tracking-wider">
+                    Proactive nudges
+                  </span>
+                </div>
+                <h3 className="text-xl font-semibold text-white">
+                  It reaches out first
+                </h3>
+                <p className="mt-2 text-sm text-white/60">
+                  Timezone-aware check-ins that respect your quiet hours — and go
+                  quiet when you say so.
+                </p>
+              </div>
+              <div className="w-full max-w-xs rounded-2xl rounded-bl-sm border border-emerald-500/20 bg-emerald-500/5 p-3.5 text-sm text-white/85">
+                <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-emerald-400/80">
+                  <MessageCircle className="size-3" />
+                  WhatsApp · 8:02 AM
+                </div>
+                You coded 2h yesterday vs your 4h goal. Want to block 9–11 for a
+                focus sprint? 🎯
+              </div>
+            </div>
+
+            {/* Integrations */}
+            <div className="card-voxa flex flex-col rounded-3xl p-6">
+              <div className="mb-4 inline-flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/25">
+                <Calendar className="size-5" />
+              </div>
+              <h3 className="text-xl font-semibold text-white">Live signals</h3>
+              <p className="mt-2 text-sm text-white/60">
+                Calendar events, commits, and coding time sync in the background
+                and land in every answer.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ===== How it works ===== */}
+        <section className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 lg:py-16">
+          <div className="mb-10 max-w-2xl">
+            <span className="text-xs font-medium uppercase tracking-[0.25em] text-primary">
+              How it works
+            </span>
+            <h2 className="font-display mt-3 text-3xl uppercase leading-[0.9] tracking-wide text-white sm:text-4xl">
+              Set up in
+              <br />
+              under a minute
+            </h2>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            {STEPS.map((s) => (
+              <div
+                key={s.n}
+                className="rounded-2xl border border-white/10 bg-white/[0.03] p-6"
+              >
+                <span className="font-display text-3xl text-primary">
+                  {s.n}
+                </span>
+                <h3 className="mt-3 font-semibold tracking-tight text-white">
+                  {s.title}
+                </h3>
+                <p className="mt-1.5 text-sm text-white/60">{s.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ===== Final CTA with watermark ===== */}
+        <section className="px-4 pb-16 sm:px-6">
+          <div className="relative mx-auto w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(120deg,rgba(1,71,163,0.4),rgba(4,4,4,0.3))] px-6 py-16 sm:px-10 sm:py-20">
+            <span className="font-display pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 select-none text-[24vw] leading-none text-white/[0.04] sm:text-[18vw]">
+              ORBIT
+            </span>
+            <div className="relative flex flex-col items-center text-center">
+              <h2 className="font-display text-3xl uppercase leading-[0.9] tracking-wide text-white sm:text-5xl">
+                Ready when you are
+              </h2>
+              <p className="mt-4 max-w-md text-white/60">
+                Create an account, link WhatsApp, and start chatting with a
+                copilot that actually knows you.
+              </p>
+              <Link href={primaryHref} className={`${WHITE_PILL} mt-8`}>
+                {registrationOpen ? "Get started — it's free" : "Sign in"}
+                <ArrowUpRight className="size-4" />
               </Link>
             </div>
           </div>
         </section>
 
-        <footer className="border-t border-border/60">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <p>
-              Backend API:{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground/80">
-                {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}
-              </code>
-            </p>
+        {/* ===== Footer ===== */}
+        <footer className="border-t border-white/10">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <span className="font-display uppercase tracking-wide text-white/60">
+              Orbit
+            </span>
             <p className="flex items-center gap-3">
               <Link
                 href="/login"
-                className="hover:text-foreground underline-offset-4 hover:underline"
+                className="underline-offset-4 hover:text-white hover:underline"
               >
                 Sign in
               </Link>
               {registrationOpen ? (
                 <>
-                  <span aria-hidden className="text-border">
+                  <span aria-hidden className="text-white/20">
                     ·
                   </span>
                   <Link
                     href="/register"
-                    className="hover:text-foreground underline-offset-4 hover:underline"
+                    className="underline-offset-4 hover:text-white hover:underline"
                   >
                     Create an account
                   </Link>
