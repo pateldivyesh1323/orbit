@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { OrbitMark } from "@/components/orbit-mark";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 
@@ -102,10 +103,11 @@ export function DashboardSidebar({
   const initials = getInitials(displayName);
 
   return (
-    <aside className="flex w-full shrink-0 flex-col border-border/60 bg-background lg:h-full lg:min-h-0 lg:w-64 lg:shrink-0 lg:border-r">
-      <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3 lg:py-4">
-        <Link href="/" className="tracking-tight">
-          <span className="font-display text-lg uppercase tracking-wide">
+    <aside className="dark bg-sidebar text-sidebar-foreground flex w-full shrink-0 flex-col border-white/10 lg:h-full lg:min-h-0 lg:w-64 lg:shrink-0 lg:border-r">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 lg:py-4">
+        <Link href="/" className="flex items-center gap-2 tracking-tight">
+          <OrbitMark className="size-7" />
+          <span className="font-display text-lg uppercase tracking-wide text-white">
             Orbit
           </span>
         </Link>
@@ -115,7 +117,7 @@ export function DashboardSidebar({
             size="icon-sm"
             onClick={onRefresh}
             disabled={refreshing}
-            className="text-muted-foreground hover:text-foreground"
+            className="text-white/50 hover:text-white"
             title="Refresh data"
             aria-label="Refresh data"
           >
@@ -128,7 +130,7 @@ export function DashboardSidebar({
             variant="ghost"
             size="icon-sm"
             onClick={handleLogout}
-            className="text-muted-foreground hover:text-destructive lg:hidden"
+            className="text-white/50 hover:text-destructive lg:hidden"
             title="Log out"
             aria-label="Log out"
           >
@@ -137,7 +139,7 @@ export function DashboardSidebar({
         </div>
       </div>
 
-      <nav className="flex gap-1 overflow-x-auto border-b border-border/60 p-2 lg:flex-col lg:overflow-x-visible lg:border-b-0 lg:p-3">
+      <nav className="flex gap-1 overflow-x-auto border-b border-white/10 p-2 lg:flex-col lg:overflow-x-visible lg:border-b-0 lg:p-3">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.id;
@@ -147,10 +149,10 @@ export function DashboardSidebar({
               type="button"
               onClick={() => onChange(item.id)}
               className={cn(
-                "group/nav flex min-w-30 shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors lg:min-w-0 lg:w-full",
+                "group/nav flex min-w-30 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors lg:w-full lg:min-w-0",
                 isActive
-                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ? "bg-primary/15 text-primary ring-1 ring-inset ring-primary/25"
+                  : "text-white/60 hover:bg-white/5 hover:text-white",
               )}
             >
               <Icon
@@ -169,8 +171,8 @@ export function DashboardSidebar({
                       className={cn(
                         "rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none",
                         isActive
-                          ? "bg-primary/15 text-primary"
-                          : "bg-muted text-muted-foreground",
+                          ? "bg-primary/20 text-primary"
+                          : "bg-white/10 text-white/60",
                       )}
                     >
                       {item.badge}
@@ -180,7 +182,7 @@ export function DashboardSidebar({
                 <span
                   className={cn(
                     "hidden truncate text-xs lg:block",
-                    isActive ? "text-primary/70" : "opacity-70",
+                    isActive ? "text-primary/70" : "text-white/40",
                   )}
                 >
                   {item.description}
@@ -191,17 +193,17 @@ export function DashboardSidebar({
         })}
       </nav>
 
-      <div className="mt-auto hidden border-t border-border/60 p-3 lg:block">
-        <div className="flex items-center gap-3 rounded-lg p-2">
-          <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/80 to-primary/60 text-xs font-semibold text-primary-foreground shadow-sm">
+      <div className="mt-auto hidden border-t border-white/10 p-3 lg:block">
+        <div className="flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-white/5">
+          <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary to-primary/60 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/20">
             {initials}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium leading-tight">
+            <p className="truncate text-sm font-medium leading-tight text-white">
               {displayName}
             </p>
             {user?.email ? (
-              <p className="text-muted-foreground truncate text-[11px] leading-tight">
+              <p className="truncate text-[11px] leading-tight text-white/40">
                 {user.email}
               </p>
             ) : null}
@@ -211,7 +213,7 @@ export function DashboardSidebar({
             variant="ghost"
             size="icon-sm"
             onClick={handleLogout}
-            className="shrink-0 text-muted-foreground hover:text-destructive"
+            className="shrink-0 text-white/50 hover:text-destructive"
             title="Log out"
             aria-label="Log out"
           >
