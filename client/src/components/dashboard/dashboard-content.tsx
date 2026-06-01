@@ -138,25 +138,32 @@ export function DashboardContent() {
 
       <main
         className={cn(
-          "flex min-h-0 min-w-0 flex-1 flex-col",
+          "dark bg-background text-foreground relative flex min-h-0 min-w-0 flex-1 flex-col",
           isChat ? "overflow-hidden" : "overflow-y-auto",
         )}
       >
+        {!isChat ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(70%_100%_at_50%_0%,rgba(90,162,250,0.08),transparent)]"
+          />
+        ) : null}
+
         {!isChat && sectionMeta ? (
-          <div className="shrink-0 border-b border-border/60 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="relative shrink-0 border-b border-white/10 px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight">
+                <h1 className="text-2xl font-semibold tracking-tight text-white">
                   {sectionMeta.title}
                 </h1>
-                <p className="text-muted-foreground mt-1 text-sm">
+                <p className="mt-1 text-sm text-white/55">
                   {sectionMeta.description}
                 </p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="shrink-0 gap-2 lg:hidden"
+                className="shrink-0 gap-2 border-white/15 text-white/70 hover:text-white lg:hidden"
                 onClick={loadDashboard}
                 disabled={loading || !token}
               >

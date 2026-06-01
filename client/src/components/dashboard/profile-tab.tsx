@@ -1,6 +1,15 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import {
+  Activity,
+  Briefcase,
+  Mail,
+  MapPin,
+  Settings2,
+  Target,
+  User,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,8 +90,9 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
   ].filter(Boolean);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid items-start gap-4 lg:grid-cols-2">
       <EditableSection
+        icon={Mail}
         title="Contact"
         description="Email and phone — WhatsApp is configured under Messaging & automation"
         view={
@@ -110,6 +120,7 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
       />
 
       <EditableSection
+        icon={User}
         title="Identity"
         description="Your profile basics"
         view={
@@ -130,6 +141,7 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
       />
 
       <EditableSection
+        icon={MapPin}
         title="Location"
         description="Timezone and locale"
         view={
@@ -157,6 +169,7 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
       />
 
       <EditableSection
+        icon={Settings2}
         title="Orbit preferences"
         description="How your copilot communicates — check-ins and nudges are under Messaging & automation"
         view={
@@ -187,6 +200,7 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
       />
 
       <EditableSection
+        icon={Target}
         className="lg:col-span-2"
         title="Goals"
         description="What you are working toward"
@@ -216,7 +230,10 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
                 {profile.goals.short_term.length ? (
                   <ul className="space-y-2 text-sm">
                     {profile.goals.short_term.map((goal) => (
-                      <li key={goal.title} className="rounded-md border px-3 py-2">
+                      <li
+                        key={goal.title}
+                        className="rounded-lg border border-white/10 bg-white/3 px-3 py-2"
+                      >
                         {goal.title}
                         {goal.completed ? (
                           <Badge variant="secondary" className="ml-2">
@@ -237,7 +254,10 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
                 {profile.goals.long_term.length ? (
                   <ul className="space-y-2 text-sm">
                     {profile.goals.long_term.map((goal) => (
-                      <li key={goal.title} className="rounded-md border px-3 py-2">
+                      <li
+                        key={goal.title}
+                        className="rounded-lg border border-white/10 bg-white/3 px-3 py-2"
+                      >
                         {goal.title}
                       </li>
                     ))}
@@ -260,6 +280,7 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
       />
 
       <EditableSection
+        icon={Briefcase}
         title="Work"
         view={
           profile.work.roles.length ? (
@@ -305,6 +326,7 @@ export function ProfileTab({ profile, token, onProfileUpdated }: ProfileTabProps
       />
 
       <EditableSection
+        icon={Activity}
         title="Health & habits"
         view={
           <dl className="space-y-3">
@@ -878,7 +900,7 @@ function WorkForm({ profile, token, onProfileUpdated, onCancel }: FormProps) {
       {roles.map((role, index) => (
         <div
           key={`work-role-${index}`}
-          className="space-y-4 rounded-lg border border-border/60 p-4"
+          className="space-y-4 rounded-xl border border-white/10 bg-white/3 p-4"
         >
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium">Role {index + 1}</p>

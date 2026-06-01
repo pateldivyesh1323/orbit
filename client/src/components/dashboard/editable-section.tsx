@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -11,9 +12,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+type SectionIcon = React.ComponentType<{ className?: string }>;
+
 type EditableSectionProps = {
   title: string;
   description?: string;
+  icon?: SectionIcon;
   className?: string;
   view: React.ReactNode;
   form: (props: { onCancel: () => void }) => React.ReactNode;
@@ -22,6 +26,7 @@ type EditableSectionProps = {
 export function EditableSection({
   title,
   description,
+  icon: Icon,
   className,
   view,
   form,
@@ -31,20 +36,35 @@ export function EditableSection({
   return (
     <Card className={className}>
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-        <div className="space-y-1">
-          <CardTitle>{title}</CardTitle>
-          {description ? <CardDescription>{description}</CardDescription> : null}
+        <div className="flex items-start gap-3">
+          {Icon ? (
+            <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/20">
+              <Icon className="size-4" />
+            </span>
+          ) : null}
+          <div className="space-y-1">
+            <CardTitle className="text-base">{title}</CardTitle>
+            {description ? (
+              <CardDescription className="text-xs leading-relaxed">
+                {description}
+              </CardDescription>
+            ) : null}
+          </div>
         </div>
         {!editing ? (
-          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setEditing(true)}
+            className="text-muted-foreground hover:text-foreground shrink-0 gap-1.5"
+          >
+            <Pencil className="size-3.5" />
             Edit
           </Button>
         ) : null}
       </CardHeader>
       <CardContent>
-        {editing
-          ? form({ onCancel: () => setEditing(false) })
-          : view}
+        {editing ? form({ onCancel: () => setEditing(false) }) : view}
       </CardContent>
     </Card>
   );
