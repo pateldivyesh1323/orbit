@@ -1,19 +1,14 @@
 "use client";
 
-import {
-  FormEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import { Bot, Check, Copy, Loader2, Send, Sparkles } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { Check, Copy, Loader2, Send, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ChatMarkdown } from "@/components/dashboard/chat-markdown";
 import { OrbitMark } from "@/components/orbit-mark";
 import { sendChatMessage } from "@/lib/chat-api";
+import { useChatSocket } from "@/lib/chat-socket";
 import { listConversationMessages } from "@/lib/conversation-api";
 import { cn } from "@/lib/utils";
 import type { ConversationMessage } from "@/types/conversation";
@@ -32,6 +27,20 @@ const SUGGESTIONS = [
 
 const SCROLL_THRESHOLD = 120;
 
+const TOOL_LABELS: Record<string, string> = {
+  get_calendar_events: "Checking your calendar",
+  get_github_activity: "Reviewing your GitHub activity",
+  get_github_pull_requests: "Looking up your pull requests",
+  snooze_check_ins: "Updating your check-ins",
+  update_goals: "Updating your goals",
+  add_memory: "Saving to memory",
+  archive_memory: "Updating your memory",
+};
+
+function toolLabel(name: string): string {
+  return TOOL_LABELS[name] ?? "Working on it";
+}
+
 export function ChatTab({ token, displayName }: ChatTabProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -39,9 +48,19 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [streamingId, setStreamingIdState] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const stickToBottomRef = useRef(true);
+  // Ref mirrors streamingId so the socket handlers always read the current value
+  // without re-subscribing or risking a stale closure.
+  const streamingIdRef = useRef<string | null>(null);
+
+  const setStreaming = useCallback((id: string | null) => {
+    streamingIdRef.current = id;
+    setStreamingIdState(id);
+  }, []);
 
   const loadHistory = useCallback(
     async (showSpinner = true) => {
@@ -65,6 +84,59 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
     void loadHistory();
   }, [loadHistory]);
 
+  const finishStreaming = useCallback(
+    (id: string | null, content: string) => {
+      if (id) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === id ? { ...m, content } : m)),
+        );
+      }
+      setStreaming(null);
+      setActiveTool(null);
+      setSending(false);
+      void loadHistory(false);
+    },
+    [loadHistory, setStreaming],
+  );
+
+  const { status, send } = useChatSocket(token, {
+    onChunk: (text) => {
+      const id = streamingIdRef.current;
+      if (!id) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === id ? { ...m, content: m.content + text } : m,
+        ),
+      );
+    },
+    onTool: (name) => setActiveTool(name),
+    onDone: (content) => {
+      finishStreaming(streamingIdRef.current, content);
+    },
+    onError: (message) => {
+      const id = streamingIdRef.current;
+      if (id) setMessages((prev) => prev.filter((m) => m.id !== id));
+      setStreaming(null);
+      setActiveTool(null);
+      setSending(false);
+      setError(message);
+    },
+    onNudge: (content, createdAt) => {
+      stickToBottomRef.current = true;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `nudge-${Date.now()}`,
+          role: "assistant",
+          content,
+          channel: "dashboard",
+          external_id: null,
+          created_at: createdAt,
+        },
+      ]);
+    },
+  });
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -82,7 +154,7 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages, sending]);
+  }, [messages, sending, activeTool]);
 
   useEffect(() => {
     if (!loadingHistory) {
@@ -106,46 +178,52 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
       const text = rawText.trim();
       if (!text || sending) return;
 
-      const tempUserId = `tmp-user-${Date.now()}`;
-      const tempAssistantId = `tmp-assistant-${Date.now()}`;
-      const optimisticUser: ConversationMessage = {
-        id: tempUserId,
-        role: "user",
-        content: text,
-        channel: "dashboard",
-        external_id: null,
-        created_at: new Date().toISOString(),
-      };
+      const userId = `tmp-user-${Date.now()}`;
+      const assistantId = `tmp-assistant-${Date.now()}`;
 
       stickToBottomRef.current = true;
-      setMessages((prev) => [...prev, optimisticUser]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: userId,
+          role: "user",
+          content: text,
+          channel: "dashboard",
+          external_id: null,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          channel: "dashboard",
+          external_id: null,
+          created_at: new Date().toISOString(),
+        },
+      ]);
       setInput("");
       setSending(true);
       setError(null);
+      setStreaming(assistantId);
       textareaRef.current?.focus();
 
+      const streamed = send(text);
+      if (streamed) return; // socket handlers drive the rest
+
+      // Fallback: REST round-trip when the socket isn't connected.
       try {
         const response = await sendChatMessage(token, text);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: tempAssistantId,
-            role: "assistant",
-            content: response.reply,
-            channel: "dashboard",
-            external_id: null,
-            created_at: new Date().toISOString(),
-          },
-        ]);
-        void loadHistory(false);
+        finishStreaming(assistantId, response.reply);
       } catch (err) {
-        setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
-        setError(err instanceof Error ? err.message : "Failed to send message");
-      } finally {
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== userId && m.id !== assistantId),
+        );
+        setStreaming(null);
         setSending(false);
+        setError(err instanceof Error ? err.message : "Failed to send message");
       }
     },
-    [sending, token, loadHistory],
+    [sending, send, token, finishStreaming, setStreaming],
   );
 
   async function handleSubmit(e: FormEvent) {
@@ -204,48 +282,53 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
                   </div>
                 ) : (
                   <div key={message.id} className="group flex gap-3">
-                    <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary ring-1 ring-primary/20">
-                      <Bot className="size-4" />
-                    </span>
+                    <OrbitMark className="size-8 shrink-0" />
                     <div className="min-w-0 flex-1 pt-0.5 text-white/85">
-                      <ChatMarkdown content={message.content} />
-                      <div className="mt-1 flex h-6 items-center opacity-0 transition-opacity group-hover:opacity-100">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="xs"
-                          className="gap-1 text-[11px] text-white/40 hover:text-white"
-                          onClick={() => handleCopy(message.id, message.content)}
-                        >
-                          {copiedId === message.id ? (
-                            <>
-                              <Check className="size-3" />
-                              Copied
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="size-3" />
-                              Copy
-                            </>
-                          )}
-                        </Button>
-                      </div>
+                      {message.content ? (
+                        <ChatMarkdown content={message.content} />
+                      ) : message.id === streamingId ? (
+                        activeTool ? (
+                          <div className="flex items-center gap-2 pt-1 text-sm text-white/50">
+                            <Loader2 className="size-3.5 animate-spin text-primary" />
+                            {toolLabel(activeTool)}…
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 pt-2 text-sm text-white/50">
+                            <span className="size-1.5 animate-pulse rounded-full bg-primary [animation-delay:-0.3s]" />
+                            <span className="size-1.5 animate-pulse rounded-full bg-primary [animation-delay:-0.15s]" />
+                            <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+                          </div>
+                        )
+                      ) : null}
+                      {message.content && message.id !== streamingId ? (
+                        <div className="mt-1 flex h-6 items-center opacity-0 transition-opacity group-hover:opacity-100">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            className="gap-1 text-[11px] text-white/40 hover:text-white"
+                            onClick={() =>
+                              handleCopy(message.id, message.content)
+                            }
+                          >
+                            {copiedId === message.id ? (
+                              <>
+                                <Check className="size-3" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="size-3" />
+                                Copy
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ),
               )}
-              {sending ? (
-                <div className="flex gap-3">
-                  <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary ring-1 ring-primary/20">
-                    <Bot className="size-4" />
-                  </span>
-                  <div className="flex items-center gap-1.5 pt-2.5 text-sm text-white/50">
-                    <span className="size-1.5 animate-pulse rounded-full bg-primary [animation-delay:-0.3s]" />
-                    <span className="size-1.5 animate-pulse rounded-full bg-primary [animation-delay:-0.15s]" />
-                    <span className="size-1.5 animate-pulse rounded-full bg-primary" />
-                  </div>
-                </div>
-              ) : null}
             </div>
           )}
         </div>
@@ -303,7 +386,15 @@ export function ChatTab({ token, displayName }: ChatTabProps) {
             </Button>
           </div>
           <p className="text-center text-[11px] text-white/40">
-            Enter to send · Shift+Enter for new line
+            {status === "open" ? (
+              "Enter to send · Shift+Enter for new line"
+            ) : status === "connecting" ? (
+              <span className="text-white/30">Connecting…</span>
+            ) : (
+              <span className="text-amber-400/70">
+                Reconnecting — messages will send over HTTP meanwhile
+              </span>
+            )}
           </p>
         </form>
       </div>

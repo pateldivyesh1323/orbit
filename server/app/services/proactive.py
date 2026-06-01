@@ -8,6 +8,7 @@ from app.models.conversation import ConversationMessage
 from app.models.user import User
 from app.services.brain import process_proactive_check_in
 from app.services.channels import InteractionChannel
+from app.services.realtime import get_broker, user_channel
 from app.services.scheduling import evaluate_check_in
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,20 @@ async def run_proactive_check_ins() -> dict:
             external_id=external_id or f"proactive:{user.id}:{now_utc.isoformat()}",
         )
         await assistant_doc.insert()
+
+        # Push to any open dashboard so the nudge appears live.
+        try:
+            await get_broker().publish(
+                user_channel(str(user.id)),
+                {
+                    "content": result.reply,
+                    "channel": channel.value,
+                    "created_at": assistant_doc.created_at.isoformat(),
+                },
+            )
+        except Exception:
+            logger.exception("Failed to publish nudge to broker user=%s", user.id)
+
         stats["sent"] += 1
 
     return stats

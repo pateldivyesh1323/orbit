@@ -16,19 +16,23 @@ from app.api.routes import (
     public_config,
     users,
     webhook,
+    ws,
 )
 from app.core.config import settings
+from app.services.realtime import close_broker, init_broker
 from app.services.scheduler import start_background_jobs, stop_background_jobs
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await init_broker()
     start_background_jobs()
     try:
         yield
     finally:
         await stop_background_jobs()
+        await close_broker()
         await close_db()
 
 
@@ -52,5 +56,6 @@ app.include_router(chat.router)
 app.include_router(integrations.router)
 app.include_router(cron.router)
 app.include_router(webhook.router)
+app.include_router(ws.router)
 if settings.enable_dev_routes:
     app.include_router(dev.router)

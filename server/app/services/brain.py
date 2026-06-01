@@ -4,12 +4,13 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Any, AsyncIterator
 
 from app.models.user import User
 from app.services.channels import InteractionChannel
 from app.services.context import AgentMode, assemble_context
 from app.services.conversation import save_conversation_turn
-from app.services.gemini import generate_orbit_reply
+from app.services.gemini import generate_orbit_reply, generate_orbit_reply_stream
 from app.services.memory_extraction import extract_and_save_memories
 from app.services.prompt import system_instruction_for
 from app.services.tools import build_user_tool_bindings
@@ -49,6 +50,72 @@ class OrbitInteractionResult:
         if self.user is None:
             return None
         return self.user.identity.display_name
+
+
+async def stream_message(
+    message: str,
+    *,
+    user: User,
+    channel: InteractionChannel,
+) -> AsyncIterator[dict[str, Any]]:
+    """Reactive path, streamed. Yields JSON-serializable events:
+
+    {"type": "chunk", "text": ...}      incremental assistant text
+    {"type": "tool",  "name", "ok"}     a tool was executed
+    {"type": "done",  "content": ...}   final assistant message (persisted)
+    {"type": "error", "message": ...}   generation failed
+    """
+    text = message.strip()
+    if not text:
+        yield {"type": "done", "content": EMPTY_MESSAGE_REPLY}
+        return
+
+    try:
+        bundle = await assemble_context(user, query=text)
+        prompt = bundle.render_prompt(
+            mode=AgentMode.REACTIVE, channel=channel, user_message=text
+        )
+        tools = await build_user_tool_bindings(user)
+        logger.info(
+            "Streaming reactive reply user=%s channel=%s history=%s signals=%s",
+            user.id,
+            channel.value,
+            len(bundle.history),
+            len(bundle.live_signals),
+        )
+
+        collected: list[str] = []
+        async for event in generate_orbit_reply_stream(
+            prompt,
+            system_instruction=system_instruction_for(AgentMode.REACTIVE),
+            tools=tools,
+        ):
+            if event.kind == "chunk":
+                collected.append(event.text)
+                yield {"type": "chunk", "text": event.text}
+            elif event.kind == "tool":
+                yield {
+                    "type": "tool",
+                    "name": event.tool_name,
+                    "ok": bool(event.tool_result and event.tool_result.get("ok")),
+                }
+
+        reply = "".join(collected).strip() or GENERATION_ERROR_REPLY
+        await save_conversation_turn(
+            user,
+            channel.value,  # type: ignore[arg-type]
+            text,
+            reply,
+        )
+        asyncio.create_task(extract_and_save_memories(user, text, reply, channel))
+        yield {"type": "done", "content": reply}
+    except Exception:
+        logger.exception(
+            "Orbit streaming generation failed user=%s channel=%s",
+            user.id,
+            channel.value,
+        )
+        yield {"type": "error", "message": GENERATION_ERROR_REPLY}
 
 
 async def process_message(

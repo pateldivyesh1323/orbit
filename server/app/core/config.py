@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     scheduler_nudge_interval_minutes: int = 15
     scheduler_initial_delay_seconds: int = 15
 
+    # Realtime broker backing the WebSocket layer.
+    # "memory" = in-process (single instance). "redis" = pub/sub backplane
+    # for multi-instance (not yet implemented — set redis_url when it lands).
+    realtime_backend: str = "memory"
+    redis_url: str | None = None
+
     frontend_url: str = "http://localhost:3000"
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
