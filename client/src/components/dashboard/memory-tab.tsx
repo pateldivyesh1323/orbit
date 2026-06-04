@@ -1,15 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Brain, Plug, Sparkles } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConversationHistory } from "@/components/dashboard/conversation-history";
 import { MemoryAddForm } from "@/components/dashboard/memory-add-form";
@@ -24,6 +17,23 @@ type MemoryTabProps = {
   onItemCreated: (item: LongTermContextItem) => void;
 };
 
+const SYNC_SOURCES = ["cron_sync", "github", "wakatime", "google_calendar"];
+
+const SOURCE_LABELS: Record<string, string> = {
+  ai_inferred: "AI-inferred",
+  manual: "Added by you",
+  wakatime: "WakaTime",
+  github: "GitHub",
+  google_calendar: "Google Calendar",
+  cron_sync: "Synced",
+  whatsapp: "WhatsApp",
+  dashboard: "Dashboard",
+};
+
+function sourceLabel(source: string): string {
+  return SOURCE_LABELS[source] ?? source;
+}
+
 function EmptyState({
   title,
   description,
@@ -32,81 +42,87 @@ function EmptyState({
   description: string;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-    </Card>
-  );
-}
-
-function LongTermMemoryList({ items }: { items: LongTermContextItem[] }) {
-  if (!items.length) {
-    return (
-      <EmptyState
-        title="No long-term memory yet"
-        description="Facts, preferences, and insights Orbit remembers across conversations will show up here."
-      />
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {items.map((item) => (
-        <Card key={item.id}>
-          <CardHeader className="pb-3">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="space-y-1">
-                <CardTitle className="text-base">{item.title}</CardTitle>
-                <CardDescription>
-                  {formatDateTime(item.created_at)}
-                  {item.source ? ` · ${item.source}` : null}
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">{item.context_type}</Badge>
-                <Badge variant="outline">Importance {item.importance}/10</Badge>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>{item.summary ?? item.content}</p>
-            {item.tags.length ? (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {item.tags.map((tag) => (
-                  <Badge key={tag} variant="outline">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      ))}
+    <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-dashed border-white/12 bg-white/2 px-6 py-12 text-center">
+      <p className="text-sm font-medium text-white">{title}</p>
+      <p className="max-w-sm text-xs text-white/45">{description}</p>
     </div>
   );
 }
 
-function SyncDataPanel({ items }: { items: LongTermContextItem[] }) {
-  const syncItems = items.filter(
-    (item) =>
-      item.source === "cron_sync" ||
-      item.source === "github" ||
-      item.source === "wakatime" ||
-      item.source === "google_calendar",
+function StatTile({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/3 p-4">
+      <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/20">
+        <Icon className="size-5" />
+      </span>
+      <div>
+        <p className="text-2xl font-semibold leading-none text-white">{value}</p>
+        <p className="mt-1 text-xs text-white/50">{label}</p>
+      </div>
+    </div>
   );
+}
 
-  if (!syncItems.length) {
-    return (
-      <EmptyState
-        title="No synced data yet"
-        description="When cron jobs and integrations run, snapshots from GitHub, WakaTime, and Calendar will be stored here for Orbit to use."
-      />
-    );
-  }
+function MemoryCard({ item }: { item: LongTermContextItem }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/3 p-4 transition-colors hover:border-white/20">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="font-medium text-white">{item.title}</h4>
+          <p className="mt-0.5 text-[11px] text-white/40">
+            {formatDateTime(item.created_at)} · {sourceLabel(item.source)}
+          </p>
+        </div>
+        <span className="text-primary bg-primary/15 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+          {item.context_type.replace(/_/g, " ")}
+        </span>
+      </div>
 
-  return <LongTermMemoryList items={syncItems} />;
+      <p className="mt-2.5 line-clamp-4 whitespace-pre-wrap text-sm text-white/70">
+        {item.summary ?? item.content}
+      </p>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {item.tags.slice(0, 4).map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/55"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="text-[10px] text-white/35">importance</span>
+          <div className="h-1.5 w-14 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="bg-primary h-full rounded-full"
+              style={{ width: `${Math.min(item.importance, 10) * 10}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MemoryCardList({ items }: { items: LongTermContextItem[] }) {
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <MemoryCard key={item.id} item={item} />
+      ))}
+    </div>
+  );
 }
 
 function ChatHistoryPanel({
@@ -139,7 +155,7 @@ function ChatHistoryPanel({
   }, [load]);
 
   if (loading) {
-    return <p className="text-muted-foreground text-sm">Loading chat history…</p>;
+    return <p className="text-sm text-white/45">Loading chat history…</p>;
   }
 
   const emptyCopy =
@@ -172,27 +188,23 @@ function ChatHistoryPanel({
 
 export function MemoryTab({ items, token, onItemCreated }: MemoryTabProps) {
   const longTermItems = items.filter(
-    (item) =>
-      item.source !== "cron_sync" &&
-      item.source !== "github" &&
-      item.source !== "wakatime" &&
-      item.source !== "google_calendar",
+    (item) => !SYNC_SOURCES.includes(item.source),
   );
+  const syncItems = items.filter((item) => SYNC_SOURCES.includes(item.source));
+  const aiInferredCount = longTermItems.filter(
+    (item) => item.source === "ai_inferred",
+  ).length;
 
   return (
-    <div className="space-y-4">
-      <Card className="border-border/60">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">What Orbit remembers</CardTitle>
-          <CardDescription>
-            Chat transcripts, long-term facts, and synced integration data —
-            everything Orbit uses as context in every reply.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatTile icon={Brain} label="Long-term facts" value={longTermItems.length} />
+        <StatTile icon={Sparkles} label="AI-inferred" value={aiInferredCount} />
+        <StatTile icon={Plug} label="Synced signals" value={syncItems.length} />
+      </div>
 
       <Tabs defaultValue="chats">
-        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+        <TabsList>
           <TabsTrigger value="chats">Chats</TabsTrigger>
           <TabsTrigger value="long-term">
             Long-term ({longTermItems.length})
@@ -202,7 +214,7 @@ export function MemoryTab({ items, token, onItemCreated }: MemoryTabProps) {
 
         <TabsContent value="chats" className="mt-4 space-y-4">
           <Tabs defaultValue="whatsapp">
-            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+            <TabsList variant="line">
               <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="all">All</TabsTrigger>
@@ -221,11 +233,25 @@ export function MemoryTab({ items, token, onItemCreated }: MemoryTabProps) {
 
         <TabsContent value="long-term" className="mt-4 space-y-4">
           <MemoryAddForm token={token} onCreated={onItemCreated} />
-          <LongTermMemoryList items={longTermItems} />
+          {longTermItems.length ? (
+            <MemoryCardList items={longTermItems} />
+          ) : (
+            <EmptyState
+              title="No long-term memory yet"
+              description="Facts, preferences, and insights Orbit remembers across conversations will show up here — most are auto-extracted as you chat."
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="sync" className="mt-4">
-          <SyncDataPanel items={items} />
+          {syncItems.length ? (
+            <MemoryCardList items={syncItems} />
+          ) : (
+            <EmptyState
+              title="No synced data yet"
+              description="Once your integrations sync, snapshots from GitHub, WakaTime, and Calendar are stored here for Orbit to use."
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>
