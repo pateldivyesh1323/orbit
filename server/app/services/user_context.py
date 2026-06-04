@@ -5,7 +5,13 @@ from app.services.embeddings import cosine_similarity, embed_text
 
 MEMORY_LIMIT = 12
 
-LIVE_SIGNAL_SOURCES = ("wakatime", "github", "google_calendar", "cron_sync")
+LIVE_SIGNAL_SOURCES = (
+    "wakatime",
+    "github",
+    "google_calendar",
+    "gmail",
+    "cron_sync",
+)
 
 # How much importance influences the final score relative to semantic similarity.
 # Pure semantic = 0.0. Strong importance bias = ~0.1. Used as a tiebreaker.

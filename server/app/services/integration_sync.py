@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 
 from app.integrations.github.client import GitHubAuthError, GitHubError
 from app.integrations.github.sync import sync_github
+from app.integrations.gmail.client import GmailAuthError, GmailError
+from app.integrations.gmail.sync import GmailSyncError, sync_gmail
 from app.integrations.google_calendar.client import CalendarAuthError, CalendarError
 from app.integrations.google_calendar.sync import (
     GoogleCalendarSyncError,
@@ -49,6 +51,8 @@ async def sync_all_integrations() -> dict:
                 context = await sync_google_calendar(integration, user)
             elif integration.provider == "github":
                 context = await sync_github(integration, user)
+            elif integration.provider == "gmail":
+                context = await sync_gmail(integration, user)
             else:
                 stats["skipped"] += 1
                 continue
@@ -68,6 +72,9 @@ async def sync_all_integrations() -> dict:
             GoogleCalendarSyncError,
             GitHubAuthError,
             GitHubError,
+            GmailAuthError,
+            GmailError,
+            GmailSyncError,
         ) as exc:
             integration.status = "error"
             integration.last_sync_error = str(exc)

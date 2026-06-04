@@ -15,11 +15,15 @@ from app.integrations.github.client import (
     verify_pat,
 )
 from app.integrations.github.sync import sync_github
+from app.integrations.gmail.client import GmailAuthError, GmailError
+from app.integrations.gmail.sync import GmailSyncError, sync_gmail
 from app.integrations.google_calendar.client import (
     CalendarAuthError,
     CalendarError,
 )
 from app.integrations.google_calendar.oauth import (
+    PROVIDER_BY_SERVICE,
+    REQUIRED_SCOPE_BY_SERVICE,
     OAuthConfigError,
     OAuthExchangeError,
     OAuthStateError,
@@ -104,6 +108,8 @@ async def _run_sync(doc: Integration, user: User) -> LongTermContext:
         return await sync_google_calendar(doc, user)
     if doc.provider == "github":
         return await sync_github(doc, user)
+    if doc.provider == "gmail":
+        return await sync_gmail(doc, user)
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=f"Sync not implemented for provider '{doc.provider}'",
@@ -157,10 +163,10 @@ async def connect_integration(
     body: IntegrationConnectRequest,
     current_user: User = Depends(get_current_user),
 ) -> IntegrationResponse:
-    if body.provider == "google_calendar":
+    if body.provider in ("google_calendar", "gmail"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Use POST /api/integrations/oauth/google_calendar/start for Google Calendar",
+            detail=f"Use the OAuth start endpoint to connect {body.provider}",
         )
     if body.provider not in ("wakatime", "github"):
         raise HTTPException(
@@ -254,7 +260,12 @@ async def trigger_integration_sync(
 
     try:
         context = await _run_sync(doc, current_user)
-    except (WakaTimeAuthError, CalendarAuthError, GitHubAuthError) as exc:
+    except (
+        WakaTimeAuthError,
+        CalendarAuthError,
+        GitHubAuthError,
+        GmailAuthError,
+    ) as exc:
         doc.status = "error"
         doc.last_sync_error = str(exc)
         doc.touch_updated()
@@ -263,7 +274,14 @@ async def trigger_integration_sync(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
-    except (WakaTimeError, CalendarError, GoogleCalendarSyncError, GitHubError) as exc:
+    except (
+        WakaTimeError,
+        CalendarError,
+        GoogleCalendarSyncError,
+        GitHubError,
+        GmailError,
+        GmailSyncError,
+    ) as exc:
         doc.status = "error"
         doc.last_sync_error = str(exc)
         doc.touch_updated()
@@ -299,16 +317,13 @@ async def trigger_integration_sync(
     )
 
 
-# --- Google Calendar OAuth ---
+# --- Google OAuth (calendar + gmail share one client, callback, redirect URI) ---
 
 
-@router.post("/oauth/google_calendar/start")
-async def google_calendar_oauth_start(
-    current_user: User = Depends(get_current_user),
-) -> dict:
+async def _start_google_oauth(user: User, service: str) -> dict:
     try:
-        state = issue_state_token(str(current_user.id))
-        url = build_authorization_url(state)
+        state = issue_state_token(str(user.id), service)
+        url = build_authorization_url(state, service)
     except OAuthConfigError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -317,12 +332,29 @@ async def google_calendar_oauth_start(
     return {"authorization_url": url}
 
 
+@router.post("/oauth/google_calendar/start")
+async def google_calendar_oauth_start(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    return await _start_google_oauth(current_user, "calendar")
+
+
+@router.post("/oauth/gmail/start")
+async def gmail_oauth_start(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    return await _start_google_oauth(current_user, "gmail")
+
+
 @router.get("/oauth/google_calendar/callback")
-async def google_calendar_oauth_callback(
+async def google_oauth_callback(
     code: str | None = Query(default=None),
     state: str | None = Query(default=None),
     error: str | None = Query(default=None),
 ) -> RedirectResponse:
+    """Single callback for all Google services. The service (calendar | gmail)
+    travels in the signed state, so one redirect URI covers every Google
+    integration."""
     if error:
         return _dashboard_redirect("google_calendar", "error", detail=error)
 
@@ -330,41 +362,39 @@ async def google_calendar_oauth_callback(
         return _dashboard_redirect("google_calendar", "error", detail="missing_params")
 
     try:
-        user_id = verify_state_token(state)
+        user_id, service = verify_state_token(state)
     except OAuthStateError as exc:
         return _dashboard_redirect("google_calendar", "error", detail=str(exc))
 
+    provider = PROVIDER_BY_SERVICE.get(service, "google_calendar")
+
     user = await User.get(user_id)
     if user is None or not user.is_active:
-        return _dashboard_redirect("google_calendar", "error", detail="user_not_found")
+        return _dashboard_redirect(provider, "error", detail="user_not_found")
 
     try:
         tokens = await exchange_code(code)
     except OAuthConfigError as exc:
-        return _dashboard_redirect("google_calendar", "error", detail=str(exc))
+        return _dashboard_redirect(provider, "error", detail=str(exc))
     except OAuthExchangeError as exc:
         logger.warning("Google OAuth exchange failed for user=%s: %s", user.id, exc)
-        return _dashboard_redirect("google_calendar", "error", detail="token_exchange_failed")
+        return _dashboard_redirect(provider, "error", detail="token_exchange_failed")
 
     refresh_token = tokens.get("refresh_token")
     access_token = tokens.get("access_token")
     if not refresh_token or not access_token:
-        return _dashboard_redirect(
-            "google_calendar", "error", detail="no_refresh_token"
-        )
+        return _dashboard_redirect(provider, "error", detail="no_refresh_token")
 
+    required_scope = REQUIRED_SCOPE_BY_SERVICE.get(service)
     granted_scopes = (tokens.get("scope") or "").split()
-    if "https://www.googleapis.com/auth/calendar.readonly" not in granted_scopes:
+    if required_scope and required_scope not in granted_scopes:
         logger.warning(
-            "Google OAuth missing calendar.readonly scope for user=%s granted=%s",
+            "Google OAuth missing %s scope for user=%s granted=%s",
+            required_scope,
             user.id,
             granted_scopes,
         )
-        return _dashboard_redirect(
-            "google_calendar",
-            "error",
-            detail="calendar_scope_not_granted",
-        )
+        return _dashboard_redirect(provider, "error", detail="scope_not_granted")
 
     from datetime import timedelta
 
@@ -381,7 +411,7 @@ async def google_calendar_oauth_callback(
 
     existing = await Integration.find_one(
         Integration.user.id == user.id,
-        Integration.provider == "google_calendar",
+        Integration.provider == provider,
     )
     if existing is not None:
         existing.credentials = encrypted_credentials
@@ -393,7 +423,7 @@ async def google_calendar_oauth_callback(
     else:
         target = Integration(
             user=user,
-            provider="google_calendar",
+            provider=provider,  # type: ignore[arg-type]
             credentials=encrypted_credentials,
             status="active",
         )
@@ -401,4 +431,4 @@ async def google_calendar_oauth_callback(
 
     asyncio.create_task(_kick_initial_sync(target, user))
 
-    return _dashboard_redirect("google_calendar", "connected")
+    return _dashboard_redirect(provider, "connected")

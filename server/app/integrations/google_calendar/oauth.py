@@ -16,13 +16,38 @@ logger = logging.getLogger(__name__)
 AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 
-SCOPES = [
+# Google OAuth here is service-aware: one client, one redirect URI, one callback.
+# The state JWT carries which service (calendar | gmail) the user is connecting,
+# so adding Google services needs no new redirect URI or Cloud Console change.
+CALENDAR_SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
     "openid",
     "email",
 ]
+GMAIL_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "openid",
+    "email",
+]
 
-STATE_PURPOSE = "google_calendar_oauth"
+SCOPES_BY_SERVICE = {
+    "calendar": CALENDAR_SCOPES,
+    "gmail": GMAIL_SCOPES,
+}
+REQUIRED_SCOPE_BY_SERVICE = {
+    "calendar": "https://www.googleapis.com/auth/calendar.readonly",
+    "gmail": "https://www.googleapis.com/auth/gmail.readonly",
+}
+# Which Integration.provider each service maps to.
+PROVIDER_BY_SERVICE = {
+    "calendar": "google_calendar",
+    "gmail": "gmail",
+}
+
+# Backwards-compatible alias.
+SCOPES = CALENDAR_SCOPES
+
+STATE_PURPOSE = "google_oauth"
 STATE_TTL_MINUTES = 15
 
 
@@ -51,19 +76,21 @@ def _require_config() -> tuple[str, str, str]:
     )
 
 
-def issue_state_token(user_id: str) -> str:
-    """Signed JWT carrying the user_id through Google's redirect. Short-lived."""
+def issue_state_token(user_id: str, service: str = "calendar") -> str:
+    """Signed JWT carrying the user_id + service through Google's redirect."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=STATE_TTL_MINUTES)
     payload = {
         "sub": user_id,
         "purpose": STATE_PURPOSE,
+        "service": service,
         "nonce": secrets.token_urlsafe(8),
         "exp": expire,
     }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
-def verify_state_token(token: str) -> str:
+def verify_state_token(token: str) -> tuple[str, str]:
+    """Return (user_id, service)."""
     try:
         payload = jwt.decode(
             token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
@@ -75,16 +102,18 @@ def verify_state_token(token: str) -> str:
     sub = payload.get("sub")
     if not sub:
         raise OAuthStateError("OAuth state missing subject")
-    return str(sub)
+    service = payload.get("service") or "calendar"
+    return str(sub), str(service)
 
 
-def build_authorization_url(state: str) -> str:
+def build_authorization_url(state: str, service: str = "calendar") -> str:
     client_id, _, redirect_uri = _require_config()
+    scopes = SCOPES_BY_SERVICE.get(service, CALENDAR_SCOPES)
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
-        "scope": " ".join(SCOPES),
+        "scope": " ".join(scopes),
         "access_type": "offline",
         "prompt": "consent",
         "include_granted_scopes": "true",

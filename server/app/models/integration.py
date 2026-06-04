@@ -7,7 +7,7 @@ from pymongo import IndexModel
 
 from app.models.user import User
 
-Provider = Literal["github", "wakatime", "google_calendar"]
+Provider = Literal["github", "wakatime", "google_calendar", "gmail"]
 IntegrationStatus = Literal["active", "inactive", "error"]
 
 

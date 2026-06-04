@@ -17,7 +17,13 @@ type MemoryTabProps = {
   onItemCreated: (item: LongTermContextItem) => void;
 };
 
-const SYNC_SOURCES = ["cron_sync", "github", "wakatime", "google_calendar"];
+const SYNC_SOURCES = [
+  "cron_sync",
+  "github",
+  "wakatime",
+  "google_calendar",
+  "gmail",
+];
 
 const SOURCE_LABELS: Record<string, string> = {
   ai_inferred: "AI-inferred",
@@ -25,6 +31,7 @@ const SOURCE_LABELS: Record<string, string> = {
   wakatime: "WakaTime",
   github: "GitHub",
   google_calendar: "Google Calendar",
+  gmail: "Gmail",
   cron_sync: "Synced",
   whatsapp: "WhatsApp",
   dashboard: "Dashboard",

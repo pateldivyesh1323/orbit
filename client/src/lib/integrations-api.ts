@@ -44,14 +44,21 @@ export function syncIntegration(
   );
 }
 
-export function startGoogleCalendarOAuth(
+const OAUTH_START_PATHS: Partial<Record<IntegrationProvider, string>> = {
+  google_calendar: "/api/integrations/oauth/google_calendar/start",
+  gmail: "/api/integrations/oauth/gmail/start",
+};
+
+export function startOAuth(
   token: string,
+  provider: IntegrationProvider,
 ): Promise<{ authorization_url: string }> {
-  return apiFetch<{ authorization_url: string }>(
-    "/api/integrations/oauth/google_calendar/start",
-    {
-      method: "POST",
-      token,
-    },
-  );
+  const path = OAUTH_START_PATHS[provider];
+  if (!path) {
+    throw new Error(`No OAuth start endpoint for provider '${provider}'`);
+  }
+  return apiFetch<{ authorization_url: string }>(path, {
+    method: "POST",
+    token,
+  });
 }

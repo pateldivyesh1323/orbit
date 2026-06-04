@@ -1,4 +1,8 @@
-export type IntegrationProvider = "github" | "wakatime" | "google_calendar";
+export type IntegrationProvider =
+  | "github"
+  | "wakatime"
+  | "google_calendar"
+  | "gmail";
 export type IntegrationStatus = "active" | "inactive" | "error";
 
 export type Integration = {

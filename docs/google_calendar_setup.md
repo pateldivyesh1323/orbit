@@ -8,10 +8,18 @@ Orbit reads your Google Calendar over OAuth 2.0. Because this is a self-hosted s
 2. Click the project dropdown → **New Project**. Name it anything (e.g. `orbit-personal`). Create.
 3. Make sure the new project is selected in the top bar.
 
-## 2. Enable the Calendar API
+## 2. Enable the Google APIs you'll use
 
 1. Left menu → **APIs & Services → Library**.
 2. Search for **Google Calendar API** → click it → **Enable**.
+3. (For the Gmail integration) search for **Gmail API** → **Enable**.
+
+> Orbit's Google integrations (Calendar, Gmail) share **one** OAuth client and
+> **one** redirect URI. The service being connected travels in a signed state
+> parameter, so you don't register anything extra per service — just enable the
+> API and connect from the dashboard. Gmail uses the read-only scope
+> (`gmail.readonly`); in "Testing" mode your own account can grant it without
+> Google verification.
 
 ## 3. Configure the OAuth consent screen
 

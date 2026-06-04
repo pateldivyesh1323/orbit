@@ -10,6 +10,7 @@ _SIGNAL_LABELS = {
     "wakatime": "WakaTime",
     "github": "GitHub",
     "google_calendar": "Google Calendar",
+    "gmail": "Gmail",
     "cron_sync": "Synced data",
 }
 

@@ -8,6 +8,7 @@ import {
   Code2,
   ExternalLink,
   Loader2,
+  Mail,
   Plug,
   RefreshCw,
   Trash2,
@@ -29,7 +30,7 @@ import {
   connectIntegration,
   disconnectIntegration,
   listIntegrations,
-  startGoogleCalendarOAuth,
+  startOAuth,
   syncIntegration,
 } from "@/lib/integrations-api";
 import { formatDateTime } from "@/lib/format";
@@ -71,6 +72,21 @@ const PROVIDERS: ProviderMeta[] = [
       "You'll bounce back here with a green banner; click Sync now to pull today's events.",
     ],
     icon: Calendar,
+  },
+  {
+    id: "gmail",
+    name: "Gmail",
+    description:
+      "Unread inbox and recent senders so Orbit can flag what needs a reply and follow-ups you owe.",
+    available: true,
+    strategy: "oauth",
+    setupSteps: [
+      "One-time admin setup: enable the Gmail API in your Google Cloud project (same project as Calendar).",
+      "Click Connect with Google below.",
+      "Sign in and grant read-only Gmail access on the consent screen.",
+      "You'll bounce back here with a green banner; click Sync now to pull your inbox.",
+    ],
+    icon: Mail,
   },
   {
     id: "wakatime",
@@ -355,7 +371,7 @@ function ProviderCard({
     setBusy("connect");
     setError(null);
     try {
-      const { authorization_url } = await startGoogleCalendarOAuth(token);
+      const { authorization_url } = await startOAuth(token, provider.id);
       window.location.href = authorization_url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start OAuth");
