@@ -2,15 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Bot,
-  LogOut,
-  MessageCircle,
-  Plug,
-  RefreshCw,
-  Sparkles,
-  User,
-} from "lucide-react";
+import { Bot, LogOut, MessageCircle, Plug, Sparkles, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { OrbitMark } from "@/components/orbit-mark";
@@ -37,8 +29,6 @@ type DashboardSidebarProps = {
   onChange: (section: DashboardSection) => void;
   memoryCount: number;
   displayName: string;
-  onRefresh: () => void;
-  refreshing: boolean;
 };
 
 function getInitials(name: string): string {
@@ -54,8 +44,6 @@ export function DashboardSidebar({
   onChange,
   memoryCount,
   displayName,
-  onRefresh,
-  refreshing,
 }: DashboardSidebarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -111,32 +99,17 @@ export function DashboardSidebar({
             Orbit
           </span>
         </Link>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onRefresh}
-            disabled={refreshing}
-            className="text-white/50 hover:text-white"
-            title="Refresh data"
-            aria-label="Refresh data"
-          >
-            <RefreshCw
-              className={cn("size-3.5", refreshing && "animate-spin")}
-            />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={handleLogout}
-            className="text-white/50 hover:text-destructive lg:hidden"
-            title="Log out"
-            aria-label="Log out"
-          >
-            <LogOut className="size-3.5" />
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={handleLogout}
+          className="text-white/50 hover:text-destructive lg:hidden"
+          title="Log out"
+          aria-label="Log out"
+        >
+          <LogOut className="size-3.5" />
+        </Button>
       </div>
 
       <nav className="flex gap-1 overflow-x-auto border-b border-white/10 p-2 lg:flex-col lg:overflow-x-visible lg:border-b-0 lg:p-3">

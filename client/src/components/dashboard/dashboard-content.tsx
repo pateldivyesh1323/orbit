@@ -132,8 +132,6 @@ export function DashboardContent() {
         onChange={setActiveSection}
         memoryCount={memory.length}
         displayName={displayName}
-        onRefresh={loadDashboard}
-        refreshing={loading}
       />
 
       <main
