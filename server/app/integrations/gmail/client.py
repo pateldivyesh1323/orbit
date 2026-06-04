@@ -33,14 +33,14 @@ def _header_value(headers: list[dict[str, Any]], name: str) -> str | None:
     return None
 
 
-async def list_unread(
+async def search_messages(
     access_token: str,
     *,
+    query: str = "in:inbox",
     max_results: int = 12,
-    query: str = "is:unread in:inbox",
     timeout: float = 15.0,
 ) -> tuple[int, list[dict[str, Any]]]:
-    """Return (estimated_unread_count, messages[]) for the query.
+    """Return (estimated_total_matching, messages[]) for the Gmail query.
 
     Each message dict: {from, subject, snippet, date}. Uses metadata-only
     fetches — no message bodies are read.

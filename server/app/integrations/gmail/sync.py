@@ -6,7 +6,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.core.integration_security import decrypt_secret, encrypt_secret
-from app.integrations.gmail.client import GmailAuthError, GmailError, list_unread
+from app.integrations.gmail.client import (
+    GmailAuthError,
+    GmailError,
+    search_messages,
+)
 from app.integrations.google_calendar.oauth import (
     OAuthExchangeError,
     refresh_access_token,
@@ -95,7 +99,9 @@ async def sync_gmail(integration: Integration, user: User) -> LongTermContext:
         raise GmailSyncError(f"Could not refresh Google token: {exc}") from exc
 
     try:
-        total, messages = await list_unread(access_token, max_results=MAX_LISTED)
+        total, messages = await search_messages(
+            access_token, query="is:unread in:inbox", max_results=MAX_LISTED
+        )
     except GmailAuthError:
         integration.credentials.pop("access_token", None)
         integration.credentials.pop("expires_at", None)

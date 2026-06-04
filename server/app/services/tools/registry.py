@@ -13,6 +13,7 @@ from app.services.tools import archive_memory as archive_memory_tool
 from app.services.tools import calendar_events as calendar_tool
 from app.services.tools import github_activity as github_activity_tool
 from app.services.tools import github_pull_requests as github_prs_tool
+from app.services.tools import gmail_emails as gmail_tool
 from app.services.tools import snooze as snooze_tool
 from app.services.tools import update_goals as update_goals_tool
 
@@ -85,6 +86,14 @@ async def build_user_tool_bindings(user: User) -> list[ToolBinding]:
             ToolBinding(
                 declaration=github_prs_tool.declaration,
                 handler=lambda **kwargs: github_prs_tool.handle(user=user, **kwargs),
+            )
+        )
+
+    if "gmail" in active_providers:
+        bindings.append(
+            ToolBinding(
+                declaration=gmail_tool.declaration,
+                handler=lambda **kwargs: gmail_tool.handle(user=user, **kwargs),
             )
         )
 
