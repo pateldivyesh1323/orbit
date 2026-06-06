@@ -104,6 +104,7 @@ def _free_blocks(
 def _build_blocks(
     today_events: list[dict[str, Any]],
     tomorrow_events: list[dict[str, Any]],
+    upcoming_events: list[dict[str, Any]],
     *,
     now: datetime,
     tz: ZoneInfo,
@@ -170,6 +171,23 @@ def _build_blocks(
                     f"  {_human_time(ev['start'])}–{_human_time(ev['end'])} {ev['summary']}"
                 )
 
+    if upcoming_events:
+        by_day: dict[Any, list[dict[str, Any]]] = {}
+        for ev in upcoming_events:
+            by_day.setdefault(ev["start"].date(), []).append(ev)
+        content_lines.append("")
+        content_lines.append("Later this week:")
+        for day in sorted(by_day)[:5]:
+            day_events = sorted(by_day[day], key=lambda e: e["start"])
+            parts: list[str] = []
+            for ev in day_events[:4]:
+                if ev["all_day"]:
+                    parts.append(f"all-day {ev['summary']}")
+                else:
+                    parts.append(f"{_human_time(ev['start'])} {ev['summary']}")
+            label = day.strftime("%a %b %d")
+            content_lines.append(f"  {label}: {'; '.join(parts)}")
+
     return " · ".join(summary_parts), "\n".join(content_lines)
 
 
@@ -218,11 +236,11 @@ async def sync_google_calendar(
     tz = _user_tz(user)
     now_local = datetime.now(tz)
     today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-    tomorrow_end = today_start + timedelta(days=2)
+    week_end = today_start + timedelta(days=7)
 
     try:
         raw_events = await list_events(
-            access_token, time_min=today_start, time_max=tomorrow_end
+            access_token, time_min=today_start, time_max=week_end
         )
     except CalendarAuthError:
         # Force refresh on next sync — clear access token only.
@@ -238,6 +256,7 @@ async def sync_google_calendar(
     tomorrow_date = today_date + timedelta(days=1)
     today_events: list[dict[str, Any]] = []
     tomorrow_events: list[dict[str, Any]] = []
+    upcoming_events: list[dict[str, Any]] = []
     for raw in raw_events:
         try:
             formatted = _format_event(raw, tz)
@@ -248,14 +267,17 @@ async def sync_google_calendar(
             today_events.append(formatted)
         elif d == tomorrow_date:
             tomorrow_events.append(formatted)
+        elif d > tomorrow_date:
+            upcoming_events.append(formatted)
 
     summary_text, content_text = _build_blocks(
-        today_events, tomorrow_events, now=now_local, tz=tz
+        today_events, tomorrow_events, upcoming_events, now=now_local, tz=tz
     )
 
     metadata = {
         "today_count": len(today_events),
         "tomorrow_count": len(tomorrow_events),
+        "upcoming_count": len(upcoming_events),
         "synced_at": datetime.now(timezone.utc).isoformat(),
         "timezone": str(tz),
     }

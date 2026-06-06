@@ -280,7 +280,7 @@ Inbound (WhatsApp webhook | POST /api/chat | POST /api/dev/chat)
 
 1. `## Right now` — authoritative local time + part-of-day label (forces model away from UTC bias)
 2. `## User profile` — identity, location, prefs, goals, work, health, habits, long-term memory hits
-3. `## Live activity (synced from connected tools)` — WakaTime + Calendar rolling summaries
+3. `## Live activity (synced from connected tools)` — renders each signal's **detailed `content`** (not the one-line summary), per-signal `### Label — title` sub-headers, capped at 1400 chars each
 4. `## Recent conversation` — last 20 turns
 5. `## Current task` — the user's message (reactive) or the proactive directive
 
@@ -356,6 +356,12 @@ After every reactive turn, fire-and-forget:
 - `sync.py` — `_ensure_access_token` auto-refreshes using stored refresh token (2-min skew buffer). Fetches today + tomorrow in user's timezone, computes free blocks (≥30 min between 08–20), upserts one rolling `LongTermContext` with `source_ref="google_calendar:rolling"`, `importance=8` (higher than WakaTime — calendar is more time-sensitive).
 
 Both providers funnel through `_run_sync()` in [routes/integrations.py](server/app/api/routes/integrations.py) and [services/integration_sync.py](server/app/services/integration_sync.py). New integrations only need a `client.py` + `sync.py` + a branch in those two dispatchers.
+
+**Sync content depth** — each connector's stored `content` is deliberately rich (the renderer now shows it in full, ≤1400 chars/signal):
+- **Gmail** — total unread + counts for **Primary** and **Important**, listing Important and Primary-only unread (sender — subject), de-duplicated. Cuts through promo noise via `category:primary` / `is:important` queries (+ `count_messages` helper).
+- **Google Calendar** — today (events + free blocks), tomorrow, and a condensed **"Later this week"** grouped by day (7-day lookahead).
+- **WakaTime** — yesterday detail + **week top languages/projects**, avg per active day, most-active day, and the daily breakdown.
+- **GitHub** — yesterday's repos, week commit/PR/review stats, top repos, open PRs, and **PRs awaiting your review** (`role=review_requested`), streak.
 
 ### 9. Web Dashboard
 

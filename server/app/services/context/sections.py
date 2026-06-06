@@ -27,6 +27,25 @@ def _format_list(label: str, items: list[str]) -> str:
     return f"- {label}: {', '.join(items)}"
 
 
+def _looks_like_header(text: str) -> bool:
+    lowered = text.lower()
+    if "(for the dashboard)" in lowered:
+        return True
+    if text.endswith(":") and len(text) <= 40:
+        return True
+    return False
+
+
+def _clean_items(items: list[str]) -> list[str]:
+    cleaned: list[str] = []
+    for raw in items:
+        text = raw.strip().lstrip("-•*").strip()
+        if not text or _looks_like_header(text):
+            continue
+        cleaned.append(text)
+    return cleaned
+
+
 def _format_location(user: User) -> list[str]:
     loc = user.location
     lines: list[str] = []
@@ -98,18 +117,42 @@ def _format_health_habits(user: User) -> list[str]:
 
     if health.fitness_level:
         lines.append(f"- Fitness level: {health.fitness_level.replace('_', ' ')}")
+    if health.height_cm and health.weight_kg:
+        lines.append(f"- Body metrics: {health.height_cm:g} cm, {health.weight_kg:g} kg")
+    elif health.weight_kg:
+        lines.append(f"- Weight: {health.weight_kg:g} kg")
     if health.sleep_target_hours is not None:
         lines.append(f"- Sleep target: {health.sleep_target_hours} hours")
     if health.typical_bedtime and health.typical_wake_time:
         lines.append(
             f"- Typical sleep: {health.typical_bedtime[:5]} to {health.typical_wake_time[:5]}"
         )
+    if health.dietary_preferences:
+        lines.append(_format_list("Diet", health.dietary_preferences))
+    if health.allergies:
+        lines.append(_format_list("Allergies", health.allergies))
+    if health.conditions:
+        lines.append(_format_list("Medical conditions", health.conditions))
+    if health.medications:
+        lines.append(_format_list("Medications", health.medications))
     if health.health_goals:
         lines.append(_format_list("Health goals", health.health_goals))
+    if health.medical_notes:
+        lines.append(f"- Health notes: {health.medical_notes}")
+    if health.mental_health_notes:
+        lines.append(f"- Mental health notes: {health.mental_health_notes}")
     if habits.morning_routine:
         lines.append(f"- Morning routine: {habits.morning_routine}")
     if habits.evening_routine:
         lines.append(f"- Evening routine: {habits.evening_routine}")
+    if habits.tracked_habits:
+        names = [h.name for h in habits.tracked_habits if h.active and h.name]
+        if names:
+            lines.append(_format_list("Tracked habits", names))
+    if habits.habits_to_build:
+        lines.append(_format_list("Building habits", habits.habits_to_build))
+    if habits.habits_to_break:
+        lines.append(_format_list("Breaking habits", habits.habits_to_break))
     return [line for line in lines if line]
 
 
@@ -141,6 +184,8 @@ def render_user_profile_block(user: User, memories: list[LongTermContext]) -> st
         lines.append(f"- WhatsApp: {user.contact.whatsapp_number}")
     if prefs.nickname:
         lines.append(f"- Call them: {prefs.nickname}")
+    if user.identity.bio:
+        lines.append(f"- Bio: {user.identity.bio}")
 
     lines.append(f"- Communication style: {prefs.communication_style}")
     lines.append(f"- Check-in frequency: {prefs.check_in_frequency}")
@@ -148,12 +193,15 @@ def render_user_profile_block(user: User, memories: list[LongTermContext]) -> st
 
     if goals.life_mission:
         lines.append(f"- Life mission: {goals.life_mission}")
-    if goals.personal_goals:
-        lines.append(_format_list("Personal goals", goals.personal_goals))
-    if goals.focus_areas:
-        lines.append(_format_list("Focus areas", goals.focus_areas))
-    if goals.weekly_priorities:
-        lines.append(_format_list("Weekly priorities", goals.weekly_priorities))
+    personal_goals = _clean_items(goals.personal_goals)
+    if personal_goals:
+        lines.append(_format_list("Personal goals", personal_goals))
+    focus_areas = _clean_items(goals.focus_areas)
+    if focus_areas:
+        lines.append(_format_list("Focus areas", focus_areas))
+    weekly_priorities = _clean_items(goals.weekly_priorities)
+    if weekly_priorities:
+        lines.append(_format_list("Weekly priorities", weekly_priorities))
 
     lines.extend(_format_work(user.work))
     lines.extend(_format_health_habits(user))
@@ -174,16 +222,21 @@ def render_user_profile_block(user: User, memories: list[LongTermContext]) -> st
     return "\n".join(line for line in lines if line)
 
 
+LIVE_SIGNAL_MAX_CHARS = 1400
+
+
 def render_live_signals_block(signals: list[LongTermContext]) -> str:
     if not signals:
         return ""
     lines = ["\n## Live activity (synced from connected tools)"]
     for item in signals:
         label = _SIGNAL_LABELS.get(item.source, item.source)
-        body = item.summary or item.content
-        if len(body) > 500:
-            body = body[:497] + "..."
-        lines.append(f"- {label} — {item.title}: {body}")
+        detail = (item.content or item.summary or "").strip()
+        if len(detail) > LIVE_SIGNAL_MAX_CHARS:
+            detail = detail[: LIVE_SIGNAL_MAX_CHARS - 3] + "..."
+        lines.append(f"\n### {label} — {item.title}")
+        if detail:
+            lines.append(detail)
     return "\n".join(lines)
 
 

@@ -9,6 +9,7 @@ from app.core.integration_security import decrypt_secret, encrypt_secret
 from app.integrations.gmail.client import (
     GmailAuthError,
     GmailError,
+    count_messages,
     search_messages,
 )
 from app.integrations.google_calendar.oauth import (
@@ -23,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 GMAIL_SOURCE_REF = "gmail:rolling"
 TOKEN_REFRESH_BUFFER = timedelta(minutes=2)
-MAX_LISTED = 12
+MAX_PRIMARY = 12
+MAX_IMPORTANT = 8
 
 
 class GmailSyncError(Exception):
@@ -72,23 +74,52 @@ def _short_sender(raw: str) -> str:
     return raw.strip()
 
 
-def _build_texts(total: int, messages: list[dict[str, Any]]) -> tuple[str, str]:
-    if total == 0:
+def _message_key(message: dict[str, Any]) -> tuple[str, str]:
+    return (_short_sender(message["from"]).lower(), (message["subject"] or "").lower())
+
+
+def _format_messages(messages: list[dict[str, Any]]) -> list[str]:
+    return [f"  • {_short_sender(m['from'])} — {m['subject']}" for m in messages]
+
+
+def _build_texts(
+    total_unread: int,
+    primary_total: int,
+    primary_msgs: list[dict[str, Any]],
+    important_total: int,
+    important_msgs: list[dict[str, Any]],
+) -> tuple[str, str]:
+    if total_unread == 0:
         return "Inbox is clear — no unread email.", "No unread messages in the inbox."
 
-    top = messages[0]
-    summary = (
-        f"{total} unread email(s) in inbox. "
-        f"Most recent: \"{top['subject']}\" from {_short_sender(top['from'])}."
-    )
+    important_keys = {_message_key(m) for m in important_msgs}
+    primary_only = [m for m in primary_msgs if _message_key(m) not in important_keys]
 
-    lines = [f"{total} unread in inbox. Most recent {len(messages)}:"]
-    for m in messages:
-        sender = _short_sender(m["from"])
-        snippet = m["snippet"][:120]
-        lines.append(f"  • {sender} — {m['subject']}")
-        if snippet:
-            lines.append(f"    {snippet}")
+    summary_bits = [f"{total_unread} unread in inbox"]
+    if primary_total:
+        summary_bits.append(f"{primary_total} in Primary")
+    if important_total:
+        summary_bits.append(f"{important_total} important")
+    summary = " · ".join(summary_bits) + "."
+    headline = important_msgs[0] if important_msgs else (primary_only[0] if primary_only else None)
+    if headline:
+        summary += (
+            f" Top: \"{headline['subject']}\" from {_short_sender(headline['from'])}."
+        )
+
+    lines = [" · ".join(summary_bits)]
+    if important_msgs:
+        lines.append("")
+        lines.append(f"Important unread ({important_total}):")
+        lines.extend(_format_messages(important_msgs))
+    if primary_only:
+        lines.append("")
+        lines.append(f"Primary unread ({primary_total}):")
+        lines.extend(_format_messages(primary_only))
+    if not important_msgs and not primary_only:
+        lines.append(
+            "Unread mail is all promotions/updates/social — nothing in Primary or marked important."
+        )
     return summary, "\n".join(lines)
 
 
@@ -99,8 +130,18 @@ async def sync_gmail(integration: Integration, user: User) -> LongTermContext:
         raise GmailSyncError(f"Could not refresh Google token: {exc}") from exc
 
     try:
-        total, messages = await search_messages(
-            access_token, query="is:unread in:inbox", max_results=MAX_LISTED
+        total_unread = await count_messages(
+            access_token, query="is:unread in:inbox"
+        )
+        primary_total, primary_msgs = await search_messages(
+            access_token,
+            query="is:unread in:inbox category:primary",
+            max_results=MAX_PRIMARY,
+        )
+        important_total, important_msgs = await search_messages(
+            access_token,
+            query="is:unread is:important in:inbox",
+            max_results=MAX_IMPORTANT,
         )
     except GmailAuthError:
         integration.credentials.pop("access_token", None)
@@ -111,11 +152,20 @@ async def sync_gmail(integration: Integration, user: User) -> LongTermContext:
     except GmailError:
         raise
 
-    summary_text, content_text = _build_texts(total, messages)
+    summary_text, content_text = _build_texts(
+        total_unread,
+        primary_total,
+        primary_msgs,
+        important_total,
+        important_msgs,
+    )
 
     metadata = {
-        "unread_total": total,
-        "messages": messages,
+        "unread_total": total_unread,
+        "primary_total": primary_total,
+        "important_total": important_total,
+        "primary_messages": primary_msgs,
+        "important_messages": important_msgs,
         "synced_at": datetime.now(timezone.utc).isoformat(),
     }
 

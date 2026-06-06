@@ -11,6 +11,7 @@ from app.integrations.github.client import (
     GitHubError,
     fetch_open_prs,
     fetch_user_events,
+    fetch_user_pull_requests,
 )
 from app.models.context import LongTermContext
 from app.models.integration import Integration
@@ -159,7 +160,11 @@ def _summarize_open_prs(prs: list[dict[str, Any]], today_utc: date) -> list[dict
     return out
 
 
-def _build_summary_text(stats: dict[str, Any], open_prs: list[dict[str, Any]]) -> str:
+def _build_summary_text(
+    stats: dict[str, Any],
+    open_prs: list[dict[str, Any]],
+    review_prs: list[dict[str, Any]],
+) -> str:
     parts: list[str] = []
     if stats["yesterday_commits"]:
         repo_names = [r["name"].split("/")[-1] for r in stats["yesterday_repos"][:2]]
@@ -171,6 +176,8 @@ def _build_summary_text(stats: dict[str, Any], open_prs: list[dict[str, Any]]) -
     parts.append(f"Past 7 days: {stats['week_commits']} commits")
     if open_prs:
         parts.append(f"{len(open_prs)} open PR(s)")
+    if review_prs:
+        parts.append(f"{len(review_prs)} to review")
     if stats["streak_days"]:
         parts.append(f"{stats['streak_days']}-day streak")
     return " · ".join(parts)
@@ -179,6 +186,7 @@ def _build_summary_text(stats: dict[str, Any], open_prs: list[dict[str, Any]]) -
 def _build_content_text(
     stats: dict[str, Any],
     open_prs: list[dict[str, Any]],
+    review_prs: list[dict[str, Any]],
     today_utc: date,
 ) -> str:
     yesterday = (today_utc - timedelta(days=1)).isoformat()
@@ -213,6 +221,13 @@ def _build_content_text(
             age = f"{pr['age_days']}d old" if pr["age_days"] else "today"
             lines.append(f"  {pr['repo']}#{pr['number']} ({age}) — {pr['title']}")
 
+    if review_prs:
+        lines.append("")
+        lines.append(f"Awaiting your review ({len(review_prs)}):")
+        for pr in review_prs[:6]:
+            age = f"{pr['age_days']}d old" if pr["age_days"] else "today"
+            lines.append(f"  {pr['repo']}#{pr['number']} ({age}) — {pr['title']}")
+
     return "\n".join(lines)
 
 
@@ -230,6 +245,9 @@ async def sync_github(integration: Integration, user: User) -> LongTermContext:
     try:
         events = await fetch_user_events(token, username)
         open_prs_raw = await fetch_open_prs(token, username)
+        review_prs_raw = await fetch_user_pull_requests(
+            token, username, state="open", role="review_requested"
+        )
     except GitHubAuthError:
         raise
     except GitHubError:
@@ -238,14 +256,16 @@ async def sync_github(integration: Integration, user: User) -> LongTermContext:
     today_utc = datetime.now(timezone.utc).date()
     stats = _summarize_events(events, today_utc)
     open_prs = _summarize_open_prs(open_prs_raw, today_utc)
+    review_prs = _summarize_open_prs(review_prs_raw, today_utc)
 
-    summary_text = _build_summary_text(stats, open_prs)
-    content_text = _build_content_text(stats, open_prs, today_utc)
+    summary_text = _build_summary_text(stats, open_prs, review_prs)
+    content_text = _build_content_text(stats, open_prs, review_prs, today_utc)
 
     metadata = {
         "username": username,
         "stats": stats,
         "open_prs": open_prs,
+        "review_prs": review_prs,
         "synced_at": datetime.now(timezone.utc).isoformat(),
     }
 

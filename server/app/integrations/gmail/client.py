@@ -33,6 +33,24 @@ def _header_value(headers: list[dict[str, Any]], name: str) -> str | None:
     return None
 
 
+async def count_messages(
+    access_token: str,
+    *,
+    query: str = "in:inbox",
+    timeout: float = 10.0,
+) -> int:
+    """Return Gmail's estimated match count for a query without fetching bodies."""
+    async with httpx.AsyncClient(timeout=timeout) as http:
+        listing = await http.get(
+            f"{GMAIL_API_BASE}/users/me/messages",
+            headers=_headers(access_token),
+            params={"q": query, "maxResults": 1},
+        )
+        _raise_for(listing, "message count")
+        payload = listing.json()
+        return int(payload.get("resultSizeEstimate") or 0)
+
+
 async def search_messages(
     access_token: str,
     *,

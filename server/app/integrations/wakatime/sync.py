@@ -65,7 +65,29 @@ def _build_summary_text(yesterday: dict[str, Any], week_seconds: float) -> str:
     )
 
 
-def _build_content_text(yesterday: dict[str, Any], days: list[dict[str, Any]], week_seconds: float) -> str:
+def _aggregate_week(raw_days: list[dict[str, Any]]) -> dict[str, Any]:
+    lang_totals: dict[str, float] = {}
+    proj_totals: dict[str, float] = {}
+    for day in raw_days:
+        for lang in day.get("languages") or []:
+            lang_totals[lang["name"]] = lang_totals.get(lang["name"], 0) + float(
+                lang.get("total_seconds") or 0
+            )
+        for proj in day.get("projects") or []:
+            proj_totals[proj["name"]] = proj_totals.get(proj["name"], 0) + float(
+                proj.get("total_seconds") or 0
+            )
+    top_languages = sorted(lang_totals.items(), key=lambda kv: kv[1], reverse=True)[:4]
+    top_projects = sorted(proj_totals.items(), key=lambda kv: kv[1], reverse=True)[:4]
+    return {"top_languages": top_languages, "top_projects": top_projects}
+
+
+def _build_content_text(
+    yesterday: dict[str, Any],
+    days: list[dict[str, Any]],
+    week_seconds: float,
+    week: dict[str, Any],
+) -> str:
     lines: list[str] = []
     lines.append(f"Yesterday ({yesterday['date']}): {yesterday['total_human']}")
     if yesterday["top_languages"]:
@@ -75,10 +97,26 @@ def _build_content_text(yesterday: dict[str, Any], days: list[dict[str, Any]], w
         projs = ", ".join(f"{p['name']} {p['human']}" for p in yesterday["top_projects"])
         lines.append(f"  Projects: {projs}")
 
+    active_days = [d for d in days if d["total_seconds"] > 0]
     lines.append("")
-    lines.append(f"Past 7 days total: {_format_duration(week_seconds)}")
+    avg_line = f"Past 7 days: {_format_duration(week_seconds)} total"
+    if active_days:
+        avg = week_seconds / len(active_days)
+        avg_line += f", avg {_format_duration(avg)}/active day ({len(active_days)} active)"
+    lines.append(avg_line)
+    if week["top_languages"]:
+        langs = ", ".join(f"{n} {_format_duration(s)}" for n, s in week["top_languages"])
+        lines.append(f"  Top languages: {langs}")
+    if week["top_projects"]:
+        projs = ", ".join(f"{n} {_format_duration(s)}" for n, s in week["top_projects"])
+        lines.append(f"  Top projects: {projs}")
+    if active_days:
+        best = max(active_days, key=lambda d: d["total_seconds"])
+        lines.append(f"  Most active day: {best['date']} ({best['total_human']})")
+
+    lines.append("  Daily:")
     for day in days[-7:]:
-        lines.append(f"  {day['date']}: {day['total_human']}")
+        lines.append(f"    {day['date']}: {day['total_human']}")
     return "\n".join(lines)
 
 
@@ -108,9 +146,10 @@ async def sync_wakatime(integration: Integration, user: User) -> LongTermContext
     days = [_summarize_day(d) for d in raw_days]
     yesterday = days[-1]
     week_seconds = sum(d["total_seconds"] for d in days)
+    week = _aggregate_week(raw_days)
 
     summary_text = _build_summary_text(yesterday, week_seconds)
-    content_text = _build_content_text(yesterday, days, week_seconds)
+    content_text = _build_content_text(yesterday, days, week_seconds, week)
 
     existing = await LongTermContext.find_one(
         LongTermContext.user.id == user.id,
@@ -120,6 +159,7 @@ async def sync_wakatime(integration: Integration, user: User) -> LongTermContext
     metadata = {
         "yesterday": yesterday,
         "days": days,
+        "week": week,
         "week_total_seconds": week_seconds,
         "week_total_human": _format_duration(week_seconds),
         "synced_at": datetime.now(timezone.utc).isoformat(),
