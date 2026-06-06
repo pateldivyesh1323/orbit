@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ChatTab } from "@/components/dashboard/chat-tab";
+import { ContextInspectorTab } from "@/components/dashboard/context-inspector-tab";
 import {
   DashboardSidebar,
   type DashboardSection,
@@ -33,6 +34,7 @@ const VALID_SECTIONS: readonly DashboardSection[] = [
   "chat",
   "profile",
   "memory",
+  "inspector",
   "messaging",
   "integrations",
 ] as const;
@@ -55,6 +57,10 @@ const SECTION_TITLES: Record<
   memory: {
     title: "Memory",
     description: "Long-term facts, chat history, and synced integration data.",
+  },
+  inspector: {
+    title: "Context inspector",
+    description: "See exactly what Orbit's agent receives for a given message.",
   },
   messaging: {
     title: "Messaging & automation",
@@ -240,6 +246,10 @@ export function DashboardContent() {
                       setMemory((prev) => [item, ...prev])
                     }
                   />
+                ) : null}
+
+                {activeSection === "inspector" ? (
+                  <ContextInspectorTab token={token} />
                 ) : null}
 
                 {activeSection === "messaging" ? (

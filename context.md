@@ -184,6 +184,7 @@ Persistent memory for prompt injection:
 | `GET` | `/api/auth/me` | Bearer | Done |
 | `GET/PATCH` | `/api/users/me` | Bearer | Done |
 | `GET/POST` | `/api/context` | Bearer | Done (POST embeds the new memory) |
+| `POST` | `/api/context/inspect` | Bearer | Done — assembled prompt + scored memories + section sizes (no model call) |
 | `GET/PATCH/DELETE` | `/api/context/{id}` | Bearer | Done (DELETE archives) |
 | `POST` | `/api/chat` | Bearer | Done — dashboard AI chat |
 | `GET` | `/api/conversations/messages` | Bearer | Done — query `channel`, `limit` |
@@ -462,6 +463,7 @@ flowchart LR
 - [x] Semantic retrieval (gemini-embedding-001, 768-dim, cosine)
 - [x] Authoritative time block at top of prompt (anti-UTC-bias)
 - [x] Conditional tool binding (calendar only when linked)
+- [x] Context Inspector — `POST /api/context/inspect` + dashboard tab surfacing scored retrieval, section token budget, and the verbatim prompt
 - [ ] Memory update-on-conflict — semantic match + LLM merge/replace/keep/skip decision
 - [ ] Memory decay / pruning — auto-archive low-importance, unaccessed memories
 - [ ] Token budget manager — cap memory section, prioritize by relevance score
@@ -498,13 +500,14 @@ Goal: make Orbit a strong, talkable demo for interviews — breadth (connectors)
 - [x] Shared `AuthShell` ([client/src/components/auth/auth-shell.tsx](client/src/components/auth/auth-shell.tsx)) — VOXA dark split layout: branded radial-gradient stage (orbit mark, pixel headline, feature bullets) + form column; collapses to a single column on mobile.
 - [x] `/login` and `/register` rewritten on top of it; forms re-skin to dark via semantic tokens; registration-closed gate preserved.
 
-### B. Context inspector + quality audit — **Planned (do next)**
+### B. Context inspector + quality audit — **Done**
 
 Context engineering is the hard part of agents and the standout depth feature.
 
-1. **Audit** via `GET /api/dev/context` — verify the `## Right now` time block, live-signal freshness/labels, semantic-retrieval relevance (right memories for the query, not noise), stale/duplicate memories, prompt size.
-2. **Context Inspector panel** (the demo gold) — a dashboard view that, for a typed query, shows exactly what the agent receives: retrieved memories with similarity scores, live signals, assembled sections, and a token count. Pitch: "transparency — here's the exact context the agent sees."
-3. **Improvements that may fall out** — token-budget trimming by relevance score; expose retrieval scores; optionally wire memory update-on-conflict so memory doesn't accumulate contradictions across a long demo.
+- [x] **Scored retrieval** — `retrieve_memories()` + `ScoredMemory` in [services/user_context.py](server/app/services/user_context.py) expose cosine similarity / final score / embedded-flag per memory; `load_user_memories()` now delegates to it (scores discarded on the hot path).
+- [x] **`POST /api/context/inspect`** ([routes/context.py](server/app/api/routes/context.py)) — authenticated (not dev-gated). Runs real assembly with **no model call**: returns the rendered prompt + system instruction, per-section char/token sizes, retrieved memories with similarity scores, live signals with freshness, history count, and diagnostic notes (unsynced integrations, missing embeddings).
+- [x] **Context Inspector tab** ([components/dashboard/context-inspector-tab.tsx](client/src/components/dashboard/context-inspector-tab.tsx)) — type a message (or a suggestion chip) → stat tiles (≈tokens, prompt chars, memories, history), a per-section token-budget bar chart, scored memory rows (colour-coded % match), live-activity rows, warning notes, and collapsible raw system-instruction + assembled prompt. New sidebar tab "Inspector" (now six tabs). Pitch: "transparency — here's the exact context the agent sees."
+- Token estimate is a `chars ÷ 4` heuristic. Possible follow-ups: real token-budget trimming by relevance score; memory update-on-conflict.
 
 ### C. More connectors — **Planned**
 

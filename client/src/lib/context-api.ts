@@ -1,5 +1,9 @@
 import { apiFetch } from "@/lib/api";
-import type { ContextType, LongTermContextItem } from "@/types/context";
+import type {
+  ContextInspection,
+  ContextType,
+  LongTermContextItem,
+} from "@/types/context";
 
 export function listContext(
   token: string,
@@ -24,6 +28,23 @@ export function createContext(
   payload: ContextCreatePayload,
 ): Promise<LongTermContextItem> {
   return apiFetch<LongTermContextItem>("/api/context", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export type InspectContextPayload = {
+  message: string;
+  mode?: "reactive" | "proactive";
+  channel?: "dashboard" | "whatsapp" | "dev";
+};
+
+export function inspectContext(
+  token: string,
+  payload: InspectContextPayload,
+): Promise<ContextInspection> {
+  return apiFetch<ContextInspection>("/api/context/inspect", {
     method: "POST",
     token,
     body: JSON.stringify(payload),

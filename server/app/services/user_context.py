@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from app.core.phone import normalize_whatsapp_number
 from app.models.context import LongTermContext
 from app.models.user import User
@@ -36,13 +38,37 @@ def _importance_sort(docs: list[LongTermContext]) -> list[LongTermContext]:
     )
 
 
-async def load_user_memories(
+@dataclass
+class ScoredMemory:
+    """A memory plus the ranking signals that selected it, for inspection."""
+
+    doc: LongTermContext
+    score: float
+    similarity: float | None
+    embedded: bool
+
+
+def _importance_fallback(
+    docs: list[LongTermContext], limit: int
+) -> list[ScoredMemory]:
+    return [
+        ScoredMemory(
+            doc=d,
+            score=float(d.importance),
+            similarity=None,
+            embedded=bool(d.embedding),
+        )
+        for d in _importance_sort(docs)[:limit]
+    ]
+
+
+async def retrieve_memories(
     user: User,
     *,
     query: str | None = None,
     limit: int = MEMORY_LIMIT,
-) -> list[LongTermContext]:
-    """Return the most relevant memories for the user.
+) -> list[ScoredMemory]:
+    """Return the most relevant memories with their ranking scores.
 
     With `query`, rank by cosine similarity over `embedding` (with a small
     importance tiebreaker). Without `query`, fall back to importance sort.
@@ -57,23 +83,43 @@ async def load_user_memories(
         return []
 
     if not query or not query.strip():
-        return _importance_sort(docs)[:limit]
+        return _importance_fallback(docs, limit)
 
     query_emb = await embed_text(query)
     if not query_emb:
-        return _importance_sort(docs)[:limit]
+        return _importance_fallback(docs, limit)
 
-    scored: list[tuple[float, LongTermContext]] = []
+    scored: list[ScoredMemory] = []
     for d in docs:
         if not d.embedding:
-            scored.append((UNEMBEDDED_FLOOR_SCORE + d.importance * 0.001, d))
+            scored.append(
+                ScoredMemory(
+                    doc=d,
+                    score=UNEMBEDDED_FLOOR_SCORE + d.importance * 0.001,
+                    similarity=None,
+                    embedded=False,
+                )
+            )
             continue
         sim = cosine_similarity(query_emb, d.embedding)
         score = sim + d.importance * IMPORTANCE_BLEND
-        scored.append((score, d))
+        scored.append(
+            ScoredMemory(doc=d, score=score, similarity=sim, embedded=True)
+        )
 
-    scored.sort(key=lambda s: -s[0])
-    return [d for _, d in scored[:limit]]
+    scored.sort(key=lambda s: -s.score)
+    return scored[:limit]
+
+
+async def load_user_memories(
+    user: User,
+    *,
+    query: str | None = None,
+    limit: int = MEMORY_LIMIT,
+) -> list[LongTermContext]:
+    """Relevance-ranked memories for prompt assembly (scores discarded)."""
+    scored = await retrieve_memories(user, query=query, limit=limit)
+    return [s.doc for s in scored]
 
 
 async def load_live_signals(user: User) -> list[LongTermContext]:

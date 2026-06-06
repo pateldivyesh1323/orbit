@@ -51,3 +51,49 @@ class ContextResponse(BaseModel):
     last_accessed_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+class ContextInspectRequest(BaseModel):
+    message: str = Field(default="", max_length=4000)
+    mode: Literal["reactive", "proactive"] = "reactive"
+    channel: Literal["dashboard", "whatsapp", "dev"] = "dashboard"
+
+
+class InspectedMemory(BaseModel):
+    id: str
+    title: str
+    context_type: ContextType
+    source: ContextSource
+    importance: int
+    similarity: float | None
+    embedded: bool
+    score: float
+
+
+class InspectedSignal(BaseModel):
+    title: str
+    source: ContextSource
+    source_ref: str | None
+    updated_at: datetime
+    summary: str | None
+
+
+class ContextSection(BaseModel):
+    name: str
+    chars: int
+    tokens: int
+
+
+class ContextInspectResponse(BaseModel):
+    mode: str
+    channel: str
+    query: str
+    system_instruction: str
+    prompt: str
+    prompt_chars: int
+    token_estimate: int
+    sections: list[ContextSection]
+    memories: list[InspectedMemory]
+    live_signals: list[InspectedSignal]
+    history_count: int
+    notes: list[str]

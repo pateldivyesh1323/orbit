@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bot, LogOut, MessageCircle, Plug, Sparkles, User } from "lucide-react";
+import {
+  Bot,
+  LogOut,
+  MessageCircle,
+  Plug,
+  ScanSearch,
+  Sparkles,
+  User,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { OrbitMark } from "@/components/orbit-mark";
@@ -13,6 +21,7 @@ export type DashboardSection =
   | "chat"
   | "profile"
   | "memory"
+  | "inspector"
   | "messaging"
   | "integrations";
 
@@ -73,6 +82,12 @@ export function DashboardSidebar({
       description: "What Orbit remembers",
       icon: Sparkles,
       badge: memoryCount > 0 ? String(memoryCount) : null,
+    },
+    {
+      id: "inspector",
+      label: "Inspector",
+      description: "What the agent sees",
+      icon: ScanSearch,
     },
     {
       id: "messaging",
