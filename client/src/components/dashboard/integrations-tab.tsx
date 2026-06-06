@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   connectIntegration,
   disconnectIntegration,
@@ -139,6 +140,30 @@ function SetupSteps({ steps }: { steps: string[] }) {
         ))}
       </ol>
     </div>
+  );
+}
+
+function IntegrationCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Skeleton className="size-4 rounded" />
+            <Skeleton className="h-4 w-28" />
+          </div>
+          <Skeleton className="h-5 w-24 rounded-full" />
+        </div>
+        <div className="space-y-1.5 pt-1">
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-4/5" />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Skeleton className="h-20 w-full rounded-md" />
+        <Skeleton className="h-8 w-36 rounded-lg" />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -305,21 +330,25 @@ export function IntegrationsTab({ token }: { token: string }) {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {PROVIDERS.map((provider) => {
-          const integration =
-            integrations.find((i) => i.provider === provider.id) ?? null;
-          return (
-            <ProviderCard
-              key={provider.id}
-              provider={provider}
-              integration={integration}
-              token={token}
-              disabled={loading && !integration}
-              onUpserted={upsertIntegration}
-              onRemoved={removeIntegration}
-            />
-          );
-        })}
+        {loading && integrations.length === 0
+          ? PROVIDERS.map((provider) => (
+              <IntegrationCardSkeleton key={provider.id} />
+            ))
+          : PROVIDERS.map((provider) => {
+              const integration =
+                integrations.find((i) => i.provider === provider.id) ?? null;
+              return (
+                <ProviderCard
+                  key={provider.id}
+                  provider={provider}
+                  integration={integration}
+                  token={token}
+                  disabled={loading && !integration}
+                  onUpserted={upsertIntegration}
+                  onRemoved={removeIntegration}
+                />
+              );
+            })}
       </div>
     </div>
   );
