@@ -28,6 +28,7 @@ ContextSource = Literal[
     "wakatime",
     "google_calendar",
     "gmail",
+    "todoist",
     "ai_inferred",
     "manual",
 ]

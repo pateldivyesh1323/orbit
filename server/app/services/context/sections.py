@@ -11,6 +11,7 @@ _SIGNAL_LABELS = {
     "github": "GitHub",
     "google_calendar": "Google Calendar",
     "gmail": "Gmail",
+    "todoist": "Todoist",
     "cron_sync": "Synced data",
 }
 

@@ -7,6 +7,7 @@ import {
   Check,
   Code2,
   ExternalLink,
+  ListTodo,
   Loader2,
   Mail,
   Plug,
@@ -125,6 +126,24 @@ const PROVIDERS: ProviderMeta[] = [
       "Paste it here and click Connect.",
     ],
     icon: Code2,
+  },
+  {
+    id: "todoist",
+    name: "Todoist",
+    description:
+      "Tasks due today, overdue, and upcoming by project — Orbit can keep you on top of your to-dos and nudge you about what's slipping.",
+    available: true,
+    strategy: "api_key",
+    helpUrl: "https://app.todoist.com/app/settings/integrations/developer",
+    helpLabel: "Find your API token (Settings → Integrations → Developer)",
+    inputLabel: "API token",
+    inputPlaceholder: "0123456789abcdef…",
+    setupSteps: [
+      "Open the link below — Todoist Settings → Integrations → Developer.",
+      "Copy the 'API token' value.",
+      "Paste it into the field below and click Connect.",
+    ],
+    icon: ListTodo,
   },
 ];
 

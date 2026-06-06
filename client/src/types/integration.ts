@@ -2,7 +2,8 @@ export type IntegrationProvider =
   | "github"
   | "wakatime"
   | "google_calendar"
-  | "gmail";
+  | "gmail"
+  | "todoist";
 export type IntegrationStatus = "active" | "inactive" | "error";
 
 export type Integration = {

@@ -12,6 +12,8 @@ from app.integrations.google_calendar.sync import (
     GoogleCalendarSyncError,
     sync_google_calendar,
 )
+from app.integrations.todoist.client import TodoistAuthError, TodoistError
+from app.integrations.todoist.sync import sync_todoist
 from app.integrations.wakatime.client import WakaTimeAuthError, WakaTimeError
 from app.integrations.wakatime.sync import sync_wakatime
 from app.models.integration import Integration
@@ -53,6 +55,8 @@ async def sync_all_integrations() -> dict:
                 context = await sync_github(integration, user)
             elif integration.provider == "gmail":
                 context = await sync_gmail(integration, user)
+            elif integration.provider == "todoist":
+                context = await sync_todoist(integration, user)
             else:
                 stats["skipped"] += 1
                 continue
@@ -75,6 +79,8 @@ async def sync_all_integrations() -> dict:
             GmailAuthError,
             GmailError,
             GmailSyncError,
+            TodoistAuthError,
+            TodoistError,
         ) as exc:
             integration.status = "error"
             integration.last_sync_error = str(exc)

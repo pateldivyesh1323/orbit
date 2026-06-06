@@ -23,6 +23,7 @@ const SYNC_SOURCES = [
   "wakatime",
   "google_calendar",
   "gmail",
+  "todoist",
 ];
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -32,6 +33,7 @@ const SOURCE_LABELS: Record<string, string> = {
   github: "GitHub",
   google_calendar: "Google Calendar",
   gmail: "Gmail",
+  todoist: "Todoist",
   cron_sync: "Synced",
   whatsapp: "WhatsApp",
   dashboard: "Dashboard",

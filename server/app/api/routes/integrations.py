@@ -36,6 +36,12 @@ from app.integrations.google_calendar.sync import (
     GoogleCalendarSyncError,
     sync_google_calendar,
 )
+from app.integrations.todoist.client import (
+    TodoistAuthError,
+    TodoistError,
+    verify_token,
+)
+from app.integrations.todoist.sync import sync_todoist
 from app.integrations.wakatime.client import (
     WakaTimeAuthError,
     WakaTimeError,
@@ -110,6 +116,8 @@ async def _run_sync(doc: Integration, user: User) -> LongTermContext:
         return await sync_github(doc, user)
     if doc.provider == "gmail":
         return await sync_gmail(doc, user)
+    if doc.provider == "todoist":
+        return await sync_todoist(doc, user)
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=f"Sync not implemented for provider '{doc.provider}'",
@@ -168,7 +176,7 @@ async def connect_integration(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Use the OAuth start endpoint to connect {body.provider}",
         )
-    if body.provider not in ("wakatime", "github"):
+    if body.provider not in ("wakatime", "github", "todoist"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Provider '{body.provider}' is not supported yet",
@@ -192,6 +200,19 @@ async def connect_integration(
                 detail=str(exc),
             ) from exc
         except WakaTimeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=str(exc),
+            ) from exc
+    elif body.provider == "todoist":
+        try:
+            await verify_token(api_key)
+        except TodoistAuthError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        except TodoistError as exc:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=str(exc),
@@ -265,6 +286,7 @@ async def trigger_integration_sync(
         CalendarAuthError,
         GitHubAuthError,
         GmailAuthError,
+        TodoistAuthError,
     ) as exc:
         doc.status = "error"
         doc.last_sync_error = str(exc)
@@ -281,6 +303,7 @@ async def trigger_integration_sync(
         GitHubError,
         GmailError,
         GmailSyncError,
+        TodoistError,
     ) as exc:
         doc.status = "error"
         doc.last_sync_error = str(exc)

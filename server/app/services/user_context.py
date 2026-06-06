@@ -12,6 +12,7 @@ LIVE_SIGNAL_SOURCES = (
     "github",
     "google_calendar",
     "gmail",
+    "todoist",
     "cron_sync",
 )
 

@@ -15,6 +15,7 @@ from app.services.tools import github_activity as github_activity_tool
 from app.services.tools import github_pull_requests as github_prs_tool
 from app.services.tools import gmail_emails as gmail_tool
 from app.services.tools import snooze as snooze_tool
+from app.services.tools import todoist_tasks as todoist_tool
 from app.services.tools import update_goals as update_goals_tool
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,14 @@ async def build_user_tool_bindings(user: User) -> list[ToolBinding]:
             ToolBinding(
                 declaration=gmail_tool.declaration,
                 handler=lambda **kwargs: gmail_tool.handle(user=user, **kwargs),
+            )
+        )
+
+    if "todoist" in active_providers:
+        bindings.append(
+            ToolBinding(
+                declaration=todoist_tool.declaration,
+                handler=lambda **kwargs: todoist_tool.handle(user=user, **kwargs),
             )
         )
 

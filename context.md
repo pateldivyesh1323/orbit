@@ -157,13 +157,13 @@ Persistent memory for prompt injection:
 - **context_type** — `fact | preference | habit | health | work | relationship | goal_progress | conversation_summary | insight | other`
 - **title**, **content**, **summary**
 - **importance** (1–10), **confidence**, **source**, **source_ref**, **tags**, **metadata**
-- **source** values: `manual`, `ai_inferred`, `whatsapp`, `dashboard`, `cron_sync`, `wakatime`, `github`, `google_calendar`
+- **source** values: `manual`, `ai_inferred`, `whatsapp`, `dashboard`, `cron_sync`, `wakatime`, `github`, `google_calendar`, `gmail`, `todoist`
 - **embedding** — `list[float] | None`, 768 dims via `gemini-embedding-001` MRL-truncation. Populated on insert by [services/embeddings.py](server/app/services/embeddings.py) `embed_memory_doc()` and backfillable via `POST /api/dev/backfill-embeddings`.
 - **expires_at**, **is_archived**, **access_count**, **last_accessed_at**
 
 ### `Integration` (`integrations` collection)
 
-- **user** (Link), **provider** (`github | wakatime | google_calendar`), **status** (`active | inactive | error`)
+- **user** (Link), **provider** (`github | wakatime | google_calendar | gmail | todoist`), **status** (`active | inactive | error`)
 - **credentials** — dict where every value is Fernet-encrypted; per-provider keys are:
   - WakaTime: `api_key`
   - Google Calendar: `refresh_token`, `access_token`, `expires_at` (ISO string), `scope`
@@ -188,7 +188,7 @@ Persistent memory for prompt injection:
 | `GET/PATCH/DELETE` | `/api/context/{id}` | Bearer | Done (DELETE archives) |
 | `POST` | `/api/chat` | Bearer | Done — dashboard AI chat |
 | `GET` | `/api/conversations/messages` | Bearer | Done — query `channel`, `limit` |
-| `GET/POST/DELETE` | `/api/integrations` | Bearer | Done (POST is WakaTime-only) |
+| `GET/POST/DELETE` | `/api/integrations` | Bearer | Done (POST connects api-key providers: WakaTime / GitHub / Todoist) |
 | `POST` | `/api/integrations/{id}/sync` | Bearer | Done — both providers |
 | `POST` | `/api/integrations/oauth/google_calendar/start` | Bearer | Done — returns `{authorization_url}` |
 | `GET` | `/api/integrations/oauth/google_calendar/callback` | state JWT | Done — exchanges code, stores tokens, redirects to dashboard |
@@ -332,6 +332,9 @@ Only non-skip replies update `last_proactive_check_in_at`, get sent via Twilio (
 | `add_memory` | Yes | Explicit user-requested memory save (source=`manual`, embedded on insert) |
 | `archive_memory` | Yes | Title-exact archive of a non-archived memory |
 | `get_calendar_events` | Only if Calendar linked | Fetch events for a date range; auto-refreshes the access token |
+| `get_emails` | Only if Gmail linked | Search inbox (Gmail query syntax), metadata-only |
+| `get_github_activity` / `get_pull_requests` | Only if GitHub linked | On-demand commits/activity and PR queries |
+| `get_tasks` | Only if Todoist linked | Query tasks by Todoist filter (default `today | overdue`) |
 
 [services/gemini.py](server/app/services/gemini.py) `generate_orbit_reply()` runs a manual tool loop (max 5 iterations): receives function_call parts, dispatches to handlers, appends function_response parts, re-calls Gemini until plain text returns or limit hit.
 
@@ -362,6 +365,7 @@ Both providers funnel through `_run_sync()` in [routes/integrations.py](server/a
 - **Google Calendar** — today (events + free blocks), tomorrow, and a condensed **"Later this week"** grouped by day (7-day lookahead).
 - **WakaTime** — yesterday detail + **week top languages/projects**, avg per active day, most-active day, and the daily breakdown.
 - **GitHub** — yesterday's repos, week commit/PR/review stats, top repos, open PRs, and **PRs awaiting your review** (`role=review_requested`), streak.
+- **Todoist** — overdue, due-today, and upcoming-7d tasks bucketed by project & priority (REST v2; static API token).
 
 ### 9. Web Dashboard
 
@@ -515,12 +519,12 @@ Context engineering is the hard part of agents and the standout depth feature.
 - [x] **Context Inspector tab** ([components/dashboard/context-inspector-tab.tsx](client/src/components/dashboard/context-inspector-tab.tsx)) — type a message (or a suggestion chip) → stat tiles (≈tokens, prompt chars, memories, history), a per-section token-budget bar chart, scored memory rows (colour-coded % match), live-activity rows, warning notes, and collapsible raw system-instruction + assembled prompt. New sidebar tab "Inspector" (now six tabs). Pitch: "transparency — here's the exact context the agent sees."
 - Token estimate is a `chars ÷ 4` heuristic. Possible follow-ups: real token-budget trimming by relevance score; memory update-on-conflict.
 
-### C. More connectors — **Planned**
+### C. More connectors — **In progress**
 
 Existing connectors are dev/productivity-heavy (WakaTime, GitHub, Calendar, Gmail). Add other life domains for demo breadth + a pluggability story.
 
-- **Google Fit** (OAuth — reuses the service-aware Google flow; talking point: "adding a Google service was nearly free") — closes the health/sleep gap Orbit models but can't yet see.
-- **Todoist** (API token, like WakaTime — different auth model + tasks domain) — pairs with goals/proactive nudges.
+- [x] **Todoist** (API token, like WakaTime/GitHub — tasks domain) — [integrations/todoist/](server/app/integrations/todoist/) `client.py` (verify_token / fetch_projects / fetch_tasks, REST v2) + `sync.py` (buckets active tasks into overdue / due-today / upcoming-7d by project & priority → rolling `LongTermContext` source="todoist", importance 7) + `get_tasks` tool (Todoist filter syntax, default `(today | overdue)`). Wired through Provider literal, ContextSource, live sources, signal label, connect/verify, both sync dispatchers, registry, and the frontend (type, Integrations card, Memory labels).
+- [ ] **Health-domain connector** — Google Fit's REST API is deprecated (sunset ~2026); **Strava** (OAuth) is the stable alternative if/when we add fitness data.
 - Each is the standard connector shape: `client.py` + `sync.py` + dispatch branch + conditional tool binding.
 
 **Suggested order:** A (done) → B (context inspector) → C (connectors), so the inspector can verify new connectors land in context correctly.
