@@ -365,7 +365,7 @@ Both providers funnel through `_run_sync()` in [routes/integrations.py](server/a
 - **Google Calendar** — today (events + free blocks), tomorrow, and a condensed **"Later this week"** grouped by day (7-day lookahead).
 - **WakaTime** — yesterday detail + **week top languages/projects**, avg per active day, most-active day, and the daily breakdown.
 - **GitHub** — yesterday's repos, week commit/PR/review stats, top repos, open PRs, and **PRs awaiting your review** (`role=review_requested`), streak.
-- **Todoist** — overdue, due-today, and upcoming-7d tasks bucketed by project & priority (REST v2; static API token).
+- **Todoist** — overdue, due-today, and upcoming-7d tasks bucketed by project & priority (unified API v1; static API token).
 
 ### 9. Web Dashboard
 
@@ -523,7 +523,7 @@ Context engineering is the hard part of agents and the standout depth feature.
 
 Existing connectors are dev/productivity-heavy (WakaTime, GitHub, Calendar, Gmail). Add other life domains for demo breadth + a pluggability story.
 
-- [x] **Todoist** (API token, like WakaTime/GitHub — tasks domain) — [integrations/todoist/](server/app/integrations/todoist/) `client.py` (verify_token / fetch_projects / fetch_tasks, REST v2) + `sync.py` (buckets active tasks into overdue / due-today / upcoming-7d by project & priority → rolling `LongTermContext` source="todoist", importance 7) + `get_tasks` tool (Todoist filter syntax, default `(today | overdue)`). Wired through Provider literal, ContextSource, live sources, signal label, connect/verify, both sync dispatchers, registry, and the frontend (type, Integrations card, Memory labels).
+- [x] **Todoist** (API token, like WakaTime/GitHub — tasks domain) — [integrations/todoist/](server/app/integrations/todoist/) `client.py` (verify_token / fetch_projects / fetch_tasks, unified **API v1** `/api/v1`, cursor-paginated `{results,next_cursor}`, filtering via `/tasks/filter?query=`) + `sync.py` (buckets active tasks into overdue / due-today / upcoming-7d by project & priority → rolling `LongTermContext` source="todoist", importance 7) + `get_tasks` tool (Todoist filter syntax, default `(today | overdue)`). Wired through Provider literal, ContextSource, live sources, signal label, connect/verify, both sync dispatchers, registry, and the frontend (type, Integrations card, Memory labels).
 - [ ] **Health-domain connector** — Google Fit's REST API is deprecated (sunset ~2026); **Strava** (OAuth) is the stable alternative if/when we add fitness data.
 - Each is the standard connector shape: `client.py` + `sync.py` + dispatch branch + conditional tool binding.
 
