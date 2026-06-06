@@ -489,6 +489,35 @@ Sprint 5 ideas, ranked by leverage:
 
 ---
 
+## Demo-readiness sprint (interview showcase)
+
+Goal: make Orbit a strong, talkable demo for interviews — breadth (connectors), first impression (auth UI), depth (context engineering). Tackled one item at a time.
+
+### A. Auth pages redesign — **Done**
+
+- [x] Shared `AuthShell` ([client/src/components/auth/auth-shell.tsx](client/src/components/auth/auth-shell.tsx)) — VOXA dark split layout: branded radial-gradient stage (orbit mark, pixel headline, feature bullets) + form column; collapses to a single column on mobile.
+- [x] `/login` and `/register` rewritten on top of it; forms re-skin to dark via semantic tokens; registration-closed gate preserved.
+
+### B. Context inspector + quality audit — **Planned (do next)**
+
+Context engineering is the hard part of agents and the standout depth feature.
+
+1. **Audit** via `GET /api/dev/context` — verify the `## Right now` time block, live-signal freshness/labels, semantic-retrieval relevance (right memories for the query, not noise), stale/duplicate memories, prompt size.
+2. **Context Inspector panel** (the demo gold) — a dashboard view that, for a typed query, shows exactly what the agent receives: retrieved memories with similarity scores, live signals, assembled sections, and a token count. Pitch: "transparency — here's the exact context the agent sees."
+3. **Improvements that may fall out** — token-budget trimming by relevance score; expose retrieval scores; optionally wire memory update-on-conflict so memory doesn't accumulate contradictions across a long demo.
+
+### C. More connectors — **Planned**
+
+Existing connectors are dev/productivity-heavy (WakaTime, GitHub, Calendar, Gmail). Add other life domains for demo breadth + a pluggability story.
+
+- **Google Fit** (OAuth — reuses the service-aware Google flow; talking point: "adding a Google service was nearly free") — closes the health/sleep gap Orbit models but can't yet see.
+- **Todoist** (API token, like WakaTime — different auth model + tasks domain) — pairs with goals/proactive nudges.
+- Each is the standard connector shape: `client.py` + `sync.py` + dispatch branch + conditional tool binding.
+
+**Suggested order:** A (done) → B (context inspector) → C (connectors), so the inspector can verify new connectors land in context correctly.
+
+---
+
 ## Development Rules
 
 1. **Modularity** — Gemini prompting separate from webhook routing; connectors as pluggable modules; tools as registry entries; models separate from schemas.
