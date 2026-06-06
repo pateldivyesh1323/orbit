@@ -3,15 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-import { SiteHeader } from "@/components/site-header";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { RegisterForm } from "@/components/auth/register-form";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
 
 export default function RegisterPage() {
@@ -27,42 +20,28 @@ export default function RegisterPage() {
 
   if (registrationOpen === undefined) {
     return (
-      <div className="flex min-h-full flex-col">
-        <SiteHeader />
-        <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12 text-center text-muted-foreground text-sm">
-          Loading…
-        </main>
-      </div>
+      <AuthShell title="Create your account">
+        <p className="text-sm text-white/45">Loading…</p>
+      </AuthShell>
     );
   }
 
   if (registrationOpen === false) {
     return (
-      <div className="flex min-h-full flex-col">
-        <SiteHeader />
-        <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12 text-center text-muted-foreground text-sm">
+      <AuthShell title="Registration closed">
+        <p className="text-sm text-white/45">
           Registration is closed on this Orbit instance. Redirecting…
-        </main>
-      </div>
+        </p>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-full flex-col">
-      <SiteHeader />
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12">
-        <Card>
-          <CardHeader>
-            <CardTitle>Sign up</CardTitle>
-            <CardDescription>
-              Create your Orbit account to connect WhatsApp and your data sources.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RegisterForm />
-          </CardContent>
-        </Card>
-      </main>
-    </div>
+    <AuthShell
+      title="Create your account"
+      subtitle="Connect WhatsApp and your data sources to get started."
+    >
+      <RegisterForm />
+    </AuthShell>
   );
 }
