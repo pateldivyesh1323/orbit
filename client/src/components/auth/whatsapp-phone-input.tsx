@@ -2,6 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { optionClassName } from "@/lib/form-helpers";
 import { COUNTRY_CODES } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
@@ -31,11 +32,11 @@ export function WhatsAppPhoneInput({
           value={countryCode}
           onChange={(e) => onCountryCodeChange(e.target.value)}
           className={cn(
-            "h-8 w-[min(100%,11rem)] shrink-0 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30",
+            "h-8 w-[min(100%,11rem)] shrink-0 rounded-lg border border-input bg-transparent px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:scheme-dark",
           )}
         >
           {COUNTRY_CODES.map((item) => (
-            <option key={item.code} value={item.code}>
+            <option key={item.code} className={optionClassName} value={item.code}>
               {item.label}
             </option>
           ))}

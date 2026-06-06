@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FormError } from "@/components/dashboard/editable-section";
 import { ApiError } from "@/lib/api";
-import { selectClassName } from "@/lib/form-helpers";
+import { optionClassName, selectClassName } from "@/lib/form-helpers";
 import { formatDateTime } from "@/lib/format";
 import { formatWhatsAppE164, parseWhatsAppE164 } from "@/lib/phone";
 import { updateUserProfile } from "@/lib/users";
@@ -272,10 +272,18 @@ export function MessagingSettingsTab({
                     setCheckInFrequency(e.target.value as CheckInFrequency)
                   }
                 >
-                  <option value="off">Off — never check in</option>
-                  <option value="low">Low — twice a day</option>
-                  <option value="medium">Medium — every ~4 hours</option>
-                  <option value="high">High — every ~90 minutes</option>
+                  <option className={optionClassName} value="off">
+                    Off — never check in
+                  </option>
+                  <option className={optionClassName} value="low">
+                    Low — twice a day
+                  </option>
+                  <option className={optionClassName} value="medium">
+                    Medium — every ~4 hours
+                  </option>
+                  <option className={optionClassName} value="high">
+                    High — every ~90 minutes
+                  </option>
                 </select>
               </div>
               <label className="flex items-center gap-2 self-end pb-1 text-sm">
@@ -283,6 +291,7 @@ export function MessagingSettingsTab({
                   type="checkbox"
                   checked={proactiveNudges}
                   onChange={(e) => setProactiveNudges(e.target.checked)}
+                  className="size-4 accent-primary dark:scheme-dark"
                 />
                 Allow proactive nudges
               </label>
@@ -297,6 +306,7 @@ export function MessagingSettingsTab({
                   value={quietStart}
                   onChange={(e) => setQuietStart(e.target.value)}
                   placeholder="22:00"
+                  className="dark:scheme-dark"
                 />
               </div>
               <div className="space-y-2">
@@ -307,6 +317,7 @@ export function MessagingSettingsTab({
                   value={quietEnd}
                   onChange={(e) => setQuietEnd(e.target.value)}
                   placeholder="08:00"
+                  className="dark:scheme-dark"
                 />
               </div>
             </div>
