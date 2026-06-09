@@ -42,7 +42,16 @@ async def validate_twilio_request(request: Request, form: dict[str, Any]) -> Non
     if not settings.twilio_validate_signatures:
         return
     if not settings.twilio_auth_token:
-        return
+        # Validation is enabled but no auth token is configured. Fail closed —
+        # an unconfigured validator must never silently accept forged webhooks.
+        logger.error(
+            "TWILIO_VALIDATE_SIGNATURES is on but TWILIO_AUTH_TOKEN is unset; "
+            "rejecting webhook (fail-closed)."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Twilio signature validation is misconfigured",
+        )
 
     signature = request.headers.get("X-Twilio-Signature", "")
     url = settings.twilio_webhook_url or str(request.url)

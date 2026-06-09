@@ -29,6 +29,23 @@ async def whatsapp_webhook(request: Request) -> dict[str, Any]:
     )
 
     user = await find_user_by_whatsapp(inbound.from_number)
+    if user is None:
+        # Only numbers registered to a user on the dashboard may interact with
+        # Orbit. Unknown senders get no processing and no outbound reply.
+        logger.info(
+            "Ignoring WhatsApp from unregistered number=%s sid=%s",
+            inbound.from_number,
+            inbound.message_sid,
+        )
+        return {
+            "status": "ignored",
+            "reply": None,
+            "outbound_sid": None,
+            "user_found": False,
+            "success": False,
+            "send_error": None,
+        }
+
     result = await process_message(
         inbound.body,
         user=user,
